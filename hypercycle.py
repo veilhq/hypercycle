@@ -241,7 +241,13 @@ class Api:
 
     def get_startup_state(self):
         caps = [
-            {"name": c.name, "available": c.available, "detail": c.detail}
+            {
+                "name": c.name,
+                "available": c.available,
+                "detail": c.detail,
+                "optional": c.optional,
+                "category": c.category,
+            }
             for c in engines.capabilities()
         ]
         cats, order, defaults = self._category_info()

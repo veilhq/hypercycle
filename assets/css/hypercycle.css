@@ -67,61 +67,175 @@ body {
   color: var(--text-bright);
 }
 
-.hc-modes {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
-  max-width: 60ch;
-}
+/* --- Segmented control ---
+   The primary category selector: one horizontal bar split into equal segments,
+   single-select. Composes design tokens; the strip and its segments carry no
+   per-content width so every segment is the same size. */
 
-/* Mode buttons are deliberately larger than a standard .action-button — this is the
-   primary choice in the app, so it gets weight. */
-.hc-mode {
+.hc-segmented {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-  min-width: 15ch;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-card);
+  width: 100%;
+  max-width: 52ch;
   border: var(--border-hair) solid var(--border-strong);
   border-radius: var(--radius);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease),
-              background var(--motion-fast) var(--ease),
-              transform var(--motion-fast) var(--ease);
+  overflow: hidden;
+  background: var(--bg-card);
 }
 
-.hc-mode:hover:not(:disabled),
-.hc-mode:focus-visible:not(:disabled) {
-  border-color: var(--accent);
+.hc-seg {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-3) var(--space-2);
+  background: transparent;
+  border: none;
+  /* Hairline divider between segments; the strip's outer border closes the ends. */
+  border-right: var(--border-hair) solid var(--border);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-caption);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease),
+              color var(--motion-fast) var(--ease);
+}
+
+.hc-seg:last-child { border-right: none; }
+
+.hc-seg:hover:not(:disabled),
+.hc-seg:focus-visible:not(:disabled) {
   background: var(--bg-card-hover);
-  transform: translateY(-2px);
+  color: var(--accent);
   outline: none;
 }
 
-.hc-mode:disabled {
-  opacity: 0.4;
+.hc-seg[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.hc-seg:disabled {
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-.hc-mode-label {
-  font-size: var(--fs-sm);
-  letter-spacing: 0.1em;
-  color: var(--text-bright);
-  text-transform: uppercase;
+/* --- From URL row ---
+   The url intake sits on its own full-width line beneath the segmented control,
+   visually distinct from the file-category segments because it takes a link
+   rather than a local file. */
+
+.hc-url-row {
+  width: 100%;
+  max-width: 52ch;
 }
 
-.hc-mode:hover:not(:disabled) .hc-mode-label { color: var(--accent); }
+.hc-url-btn {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-card);
+  border: var(--border-hair) dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-caption);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease),
+              background var(--motion-fast) var(--ease),
+              color var(--motion-fast) var(--ease);
+}
 
-.hc-mode-blurb {
+.hc-url-btn:hover:not(:disabled),
+.hc-url-btn:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+  color: var(--accent);
+  outline: none;
+}
+
+.hc-url-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* --- Format finder ---
+   Searchable dropdown beneath the segmented control. Type to filter every
+   supported input format; picking one routes into its category. */
+
+.hc-finder {
+  position: relative;
+  width: 100%;
+  max-width: 52ch;
+}
+
+.hc-finder-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-inset, var(--bg));
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-caption);
+}
+
+.hc-finder-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.hc-finder-input::placeholder {
+  color: var(--text-dim);
+}
+
+.hc-finder-list {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-panel);
+}
+
+.hc-finder-opt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.hc-finder-opt:hover,
+.hc-finder-opt-active {
+  background: var(--bg-card-hover);
+}
+
+.hc-finder-ext {
+  font-size: var(--fs-caption);
+  color: var(--text);
+}
+
+.hc-finder-cat {
   font-size: var(--fs-micro);
   color: var(--text-dim);
   letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .hc-route-caps {
@@ -487,3 +601,96 @@ body {
 }
 
 .hc-toast.hc-toast-error { border-left-color: var(--error); }
+
+
+/* --- Dependency modal ---
+   Overlay and panel geometry come from Hyperkit's .modal-overlay / .modal-panel;
+   these rules style only the panel's contents. Shown once on launch when a core
+   engine failed to load. */
+
+.hc-dep-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hc-dep-title {
+  font-size: var(--fs-body);
+  color: var(--text);
+  margin: 0;
+}
+
+.hc-dep-lead {
+  font-size: var(--fs-caption);
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.hc-dep-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hc-dep-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-hair) solid var(--border);
+  border-left: 2px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset, var(--bg));
+}
+
+.hc-dep-name {
+  font-size: var(--fs-caption);
+  color: var(--text);
+}
+
+.hc-dep-impact {
+  font-size: var(--fs-micro);
+  color: var(--warning);
+  letter-spacing: 0.04em;
+}
+
+.hc-dep-detail {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+.hc-dep-fix-label {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.hc-dep-cmd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-hair) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset, var(--bg));
+}
+
+.hc-dep-cmd code {
+  flex: 1 1 auto;
+  font-size: var(--fs-micro);
+  color: var(--text);
+  user-select: all;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.hc-dep-actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -23,7 +23,29 @@
   <section class="hc-route" id="hc-route">
     <span class="hc-route-mark" id="hc-route-mark"></span>
     <h1 class="hc-route-greeting" id="hc-route-greeting">What are we converting?</h1>
-    <div class="hc-modes" id="hc-modes"></div>
+
+    <!-- Category selector — one segment per conversion mode, single-select.
+         Unavailable modes render disabled. Selecting a segment enters that mode. -->
+    <div class="hc-segmented" id="hc-segmented" role="tablist"
+         aria-label="Conversion category"></div>
+
+    <!-- Searchable format finder — type to filter every supported input format;
+         picking one jumps into that format's category. An active router, not a
+         reference list. -->
+    <div class="hc-finder" id="hc-finder">
+      <input type="text" class="hc-finder-input" id="hc-finder-input"
+             role="combobox" aria-expanded="false" aria-autocomplete="list"
+             aria-controls="hc-finder-list" autocomplete="off" spellcheck="false"
+             placeholder="Search a format — png, mp3, docx…"
+             aria-label="Search supported formats">
+      <ul class="hc-finder-list" id="hc-finder-list" role="listbox" hidden></ul>
+    </div>
+
+    <!-- From URL breaks out of the segmented control onto its own line — it is a
+         fundamentally different intake (a link, not a local file). Rendered by
+         renderUrlRow so it inherits availability from the fetch mode. -->
+    <div class="hc-url-row" id="hc-url-row"></div>
+
     <span class="hc-route-caps" id="hc-caps" data-tooltip="Engine availability"></span>
   </section>
 
@@ -83,6 +105,38 @@
     </aside>
 
   </section>
+
+  <!-- ============================================================
+       DEPENDENCY MODAL — shown once on launch only when a core engine
+       failed to load, i.e. the install is incomplete. The optional PDF
+       engine never triggers it. Dismissible: whatever engines did load
+       stay usable, and modes with no engine are disabled in the nav.
+       ============================================================ -->
+  <div class="modal-overlay hc-dep-overlay" id="hc-dep-overlay"
+       role="dialog" aria-modal="true" aria-labelledby="hc-dep-title" hidden>
+    <div class="modal-panel hc-dep-panel">
+      <h2 class="hc-dep-title" id="hc-dep-title">Some conversion engines didn't load</h2>
+      <p class="hc-dep-lead">
+        Hypercycle bundles every engine as a Python package, so a missing engine
+        means the install is incomplete. The affected conversions are disabled
+        until it's repaired — everything else still works.
+      </p>
+
+      <ul class="hc-dep-list" id="hc-dep-list"></ul>
+
+      <p class="hc-dep-fix-label">Reinstall the dependencies from the app directory:</p>
+      <div class="hc-dep-cmd">
+        <code id="hc-dep-cmd-text">pip install -r requirements.txt</code>
+        <button class="action-button hc-btn-sm" id="hc-dep-copy">COPY</button>
+      </div>
+
+      <div class="hc-dep-actions">
+        <button class="action-button action-button-primary hc-btn-sm" id="hc-dep-dismiss">
+          CONTINUE ANYWAY
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div class="hc-toast-host" id="hc-toast-host" aria-live="polite"></div>
 </div>

@@ -296,11 +296,19 @@ def category_for(ext: str) -> str:
 
 @dataclass(frozen=True)
 class Capability:
-    """One engine's availability, for the launch-time probe."""
+    """One engine's availability, for the launch-time probe.
+
+    `optional` marks an engine whose absence is expected and not a failure — the
+    PDF output engine, which nothing bundles. `category` names the conversion
+    area an engine unlocks, so the UI can say what is disabled when it is
+    missing (empty when the engine spans no single category).
+    """
 
     name: str
     available: bool
     detail: str = ""
+    optional: bool = False
+    category: str = ""
 
 
 @dataclass
@@ -332,17 +340,19 @@ class ConversionPlan:
 def capabilities() -> list[Capability]:
     """Report which engines resolved. Drives the UI's disabled states."""
     caps = [
-        Capability("Pillow (raster images)", _HAS_PILLOW, _PROBE_ERRORS.get("pillow", "")),
-        Capability("pillow-heif (HEIC/HEIF)", _HAS_HEIF, _PROBE_ERRORS.get("pillow-heif", "")),
-        Capability("Pillow native AVIF", _HAS_AVIF, "" if _HAS_AVIF else "Pillow built without AVIF"),
-        Capability("PyMuPDF (SVG/PDF input)", _HAS_MUPDF, _PROBE_ERRORS.get("pymupdf", "")),
-        Capability("ffmpeg (audio/video)", _HAS_FFMPEG, _PROBE_ERRORS.get("ffmpeg", "")),
-        Capability("pandoc (documents)", _HAS_PANDOC, _PROBE_ERRORS.get("pandoc", "")),
+        Capability("Pillow (raster images)", _HAS_PILLOW, _PROBE_ERRORS.get("pillow", ""), category="images"),
+        Capability("pillow-heif (HEIC/HEIF)", _HAS_HEIF, _PROBE_ERRORS.get("pillow-heif", ""), category="images"),
+        Capability("Pillow native AVIF", _HAS_AVIF, "" if _HAS_AVIF else "Pillow built without AVIF", category="images"),
+        Capability("PyMuPDF (SVG/PDF input)", _HAS_MUPDF, _PROBE_ERRORS.get("pymupdf", ""), category="vector"),
+        Capability("ffmpeg (audio/video)", _HAS_FFMPEG, _PROBE_ERRORS.get("ffmpeg", ""), category="audio/video"),
+        Capability("pandoc (documents)", _HAS_PANDOC, _PROBE_ERRORS.get("pandoc", ""), category="documents"),
         Capability(
             "PDF output engine",
             bool(_PDF_ENGINE),
             f"using {_PDF_ENGINE}" if _PDF_ENGINE
             else "no PDF engine on PATH — document-to-PDF unavailable",
+            optional=True,
+            category="documents",
         ),
     ]
     return caps

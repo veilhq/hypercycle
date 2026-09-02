@@ -22,6 +22,9 @@
     running: false,
     drawerOpen: false,
     brandSvg: "",
+    formatIndex: [],
+    finderMatches: [],
+    finderActive: -1,
   };
 
   var asciiTick = 0;
@@ -47,7 +50,11 @@
     el.app = byId("hc-app");
     el.routeMark = byId("hc-route-mark");
     el.greeting = byId("hc-route-greeting");
-    el.modes = byId("hc-modes");
+    el.segmented = byId("hc-segmented");
+    el.urlRow = byId("hc-url-row");
+    el.finder = byId("hc-finder");
+    el.finderInput = byId("hc-finder-input");
+    el.finderList = byId("hc-finder-list");
     el.caps = byId("hc-caps");
     el.back = byId("hc-back");
     el.workMode = byId("hc-work-mode");
@@ -66,6 +73,11 @@
     el.start = byId("hc-start");
     el.clear = byId("hc-clear");
     el.toastHost = byId("hc-toast-host");
+    el.depOverlay = byId("hc-dep-overlay");
+    el.depList = byId("hc-dep-list");
+    el.depCmdText = byId("hc-dep-cmd-text");
+    el.depCopy = byId("hc-dep-copy");
+    el.depDismiss = byId("hc-dep-dismiss");
 
     wireEvents();
     waitForBridge(loadInitialState);
@@ -92,7 +104,9 @@
       applyTheme(data.theme);
       renderMarks();
       renderCaps(data.capabilities || []);
-      renderModes();
+      renderSegmented();
+      renderUrlRow();
+      buildFormatIndex();
       refreshQueue();
     }).catch(function (err) {
       toast("Startup failed: " + err, true);
@@ -175,39 +189,232 @@
     el.caps.setAttribute("data-tooltip", missing.map(function (c) {
       return c.name + (c.detail ? " — " + c.detail : "");
     }).join("\n"));
+
+    // A missing OPTIONAL engine (the PDF engine) is expected and never warns —
+    // it's surfaced in the caps line above and the disabled nav. Only a missing
+    // CORE engine means the install is broken, and that gets the launch modal.
+    var missingCore = missing.filter(function (c) { return !c.optional; });
+    if (missingCore.length) showDepModal(missingCore);
   }
 
-  // One button per mode. Unavailable modes stay visible but disabled so the
-  // routing screen shows the shape of the app rather than a single lonely button.
-  function renderModes() {
-    el.modes.innerHTML = "";
-    state.modes.forEach(function (mode) {
-      var btn = document.createElement("button");
-      btn.className = "hc-mode";
-      btn.disabled = !mode.available;
-      btn.setAttribute("data-mode", mode.id);
+  // --- Dependency modal ----------------------------------------------------
+  // Launch-only, dismissible. Appears when a bundled engine failed to load —
+  // an incomplete install — and points the operator at the reinstall command.
 
-      var label = document.createElement("span");
-      label.className = "hc-mode-label";
-      label.textContent = mode.label;
+  function isDepModalOpen() {
+    return el.depOverlay && el.depOverlay.classList.contains("visible");
+  }
 
-      var blurb = document.createElement("span");
-      blurb.className = "hc-mode-blurb";
-      blurb.textContent = mode.available
-        ? mode.extensions.slice(0, 6).join(" ")
-        : mode.blurb;
+  function showDepModal(missingCore) {
+    if (!el.depOverlay) return;
 
-      btn.appendChild(label);
-      btn.appendChild(blurb);
+    el.depList.innerHTML = "";
+    missingCore.forEach(function (cap) {
+      var li = document.createElement("li");
+      li.className = "hc-dep-item";
 
-      if (mode.available) {
-        btn.addEventListener("click", function () { enterMode(mode); });
-      } else {
-        btn.setAttribute("data-tooltip", mode.blurb);
+      var name = document.createElement("span");
+      name.className = "hc-dep-name";
+      name.textContent = cap.name;
+      li.appendChild(name);
+
+      // Name the conversion area this engine unlocks, so the impact is concrete.
+      var impact = document.createElement("span");
+      impact.className = "hc-dep-impact";
+      impact.textContent = cap.category
+        ? cap.category + " conversion disabled"
+        : "some conversions disabled";
+      li.appendChild(impact);
+
+      if (cap.detail) {
+        var detail = document.createElement("span");
+        detail.className = "hc-dep-detail";
+        detail.textContent = cap.detail;
+        li.appendChild(detail);
       }
 
-      el.modes.appendChild(btn);
+      el.depList.appendChild(li);
     });
+
+    el.depOverlay.hidden = false;
+    // Next frame so the opacity transition runs rather than snapping.
+    requestAnimationFrame(function () {
+      el.depOverlay.classList.add("visible");
+    });
+    // Move focus to the dismiss control for keyboard and screen-reader users.
+    if (el.depDismiss) el.depDismiss.focus();
+  }
+
+  function closeDepModal() {
+    if (!el.depOverlay) return;
+    el.depOverlay.classList.remove("visible");
+    // Hide after the fade so it leaves the tab order.
+    setTimeout(function () { el.depOverlay.hidden = true; }, 200);
+  }
+
+  function copyDepCommand() {
+    var text = (el.depCmdText && el.depCmdText.textContent) || "";
+    var done = function () { toast("Command copied."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+    function fallbackCopy() {
+      // WebView2 can withhold the async clipboard API without a secure origin;
+      // the legacy selection path still works inside the host.
+      try {
+        var r = document.createRange();
+        r.selectNodeContents(el.depCmdText);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        document.execCommand("copy");
+        sel.removeAllRanges();
+        done();
+      } catch (err) {
+        toast("Copy failed — select the command manually.", true);
+      }
+    }
+  }
+
+  // Segmented control — one segment per FILE-based mode, single-select.
+  // The "From URL" mode is intake of a different kind (a link, not a file) and
+  // breaks out onto its own line below; see renderUrlRow. Unavailable modes
+  // render disabled so the strip still shows the shape of the app.
+  function renderSegmented() {
+    el.segmented.innerHTML = "";
+    state.modes.forEach(function (mode) {
+      if (mode.id === "fetch") return; // rendered separately on its own line
+      var seg = document.createElement("button");
+      seg.className = "hc-seg";
+      seg.setAttribute("role", "tab");
+      seg.setAttribute("data-mode", mode.id);
+      seg.disabled = !mode.available;
+      seg.setAttribute("aria-selected", "false");
+      seg.textContent = mode.label;
+
+      if (mode.available) {
+        seg.addEventListener("click", function () { enterMode(mode); });
+      } else {
+        // Say why it's unavailable rather than leaving a dead segment unexplained.
+        seg.setAttribute("data-tooltip", mode.blurb);
+      }
+      el.segmented.appendChild(seg);
+    });
+  }
+
+  // "From URL" on its own line, full width beneath the segmented control. Enters
+  // the fetch mode when available; disabled with its reason when the engine for
+  // it hasn't shipped yet.
+  function renderUrlRow() {
+    el.urlRow.innerHTML = "";
+    var fetch = state.modes.filter(function (m) { return m.id === "fetch"; })[0];
+    if (!fetch) return;
+
+    var btn = document.createElement("button");
+    btn.className = "hc-url-btn";
+    btn.setAttribute("data-mode", "fetch");
+    btn.disabled = !fetch.available;
+    btn.textContent = fetch.label;
+
+    if (fetch.available) {
+      btn.addEventListener("click", function () { enterMode(fetch); });
+    } else {
+      btn.setAttribute("data-tooltip", fetch.blurb);
+    }
+    el.urlRow.appendChild(btn);
+  }
+
+  // --- Format finder -------------------------------------------------------
+  // A flat, searchable index of every supported INPUT format, each tagged with
+  // the mode it belongs to. Picking one routes into that mode — an active
+  // router, not a reference list.
+
+  function buildFormatIndex() {
+    var seen = {};
+    state.formatIndex = [];
+    state.modes.forEach(function (mode) {
+      if (!mode.available) return;
+      (mode.extensions || []).forEach(function (ext) {
+        // A format can appear under one mode only; first wins, deterministic
+        // because modes come in a fixed order from the backend.
+        if (seen[ext]) return;
+        seen[ext] = true;
+        state.formatIndex.push({ ext: ext, modeId: mode.id, modeLabel: mode.label });
+      });
+    });
+    state.formatIndex.sort(function (a, b) { return a.ext < b.ext ? -1 : 1; });
+    state.finderActive = -1;
+  }
+
+  function openFinder() {
+    renderFinderList(el.finderInput.value.trim().toLowerCase());
+  }
+
+  function renderFinderList(query) {
+    var matches = state.formatIndex.filter(function (f) {
+      return !query || f.ext.indexOf(query) !== -1;
+    });
+
+    el.finderList.innerHTML = "";
+    if (!matches.length) {
+      el.finderList.hidden = true;
+      el.finderInput.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    matches.forEach(function (f, i) {
+      var li = document.createElement("li");
+      li.className = "hc-finder-opt";
+      li.setAttribute("role", "option");
+      li.setAttribute("data-ext", f.ext);
+      li.setAttribute("aria-selected", i === state.finderActive ? "true" : "false");
+      if (i === state.finderActive) li.classList.add("hc-finder-opt-active");
+
+      var ext = document.createElement("span");
+      ext.className = "hc-finder-ext";
+      ext.textContent = "." + f.ext;
+      li.appendChild(ext);
+
+      var cat = document.createElement("span");
+      cat.className = "hc-finder-cat";
+      cat.textContent = f.modeLabel;
+      li.appendChild(cat);
+
+      // mousedown, not click — click fires after the input blur that would
+      // otherwise close the list first.
+      li.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        chooseFormat(f);
+      });
+      el.finderList.appendChild(li);
+    });
+
+    state.finderMatches = matches;
+    el.finderList.hidden = false;
+    el.finderInput.setAttribute("aria-expanded", "true");
+  }
+
+  function moveFinderActive(delta) {
+    var n = (state.finderMatches || []).length;
+    if (!n) return;
+    state.finderActive = (state.finderActive + delta + n) % n;
+    renderFinderList(el.finderInput.value.trim().toLowerCase());
+  }
+
+  function chooseFormat(f) {
+    var mode = state.modes.filter(function (m) { return m.id === f.modeId; })[0];
+    if (!mode) return;
+    closeFinder();
+    el.finderInput.value = "";
+    enterMode(mode);
+  }
+
+  function closeFinder() {
+    el.finderList.hidden = true;
+    el.finderInput.setAttribute("aria-expanded", "false");
+    state.finderActive = -1;
   }
 
   // --- View transitions ----------------------------------------------------
@@ -485,10 +692,36 @@
       api().clear_finished().then(refreshQueue);
     });
 
-    // Escape closes the drawer, then backs out of the mode.
+    el.depCopy.addEventListener("click", copyDepCommand);
+    el.depDismiss.addEventListener("click", closeDepModal);
+
+    // Format finder — open on focus, filter on type, keyboard-navigable.
+    el.finderInput.addEventListener("focus", openFinder);
+    el.finderInput.addEventListener("input", function () {
+      state.finderActive = -1;
+      renderFinderList(el.finderInput.value.trim().toLowerCase());
+    });
+    el.finderInput.addEventListener("keydown", function (e) {
+      if (el.finderList.hidden) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); moveFinderActive(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); moveFinderActive(-1); }
+      else if (e.key === "Enter") {
+        var m = state.finderMatches || [];
+        var pick = state.finderActive >= 0 ? m[state.finderActive] : m[0];
+        if (pick) { e.preventDefault(); chooseFormat(pick); }
+      }
+    });
+    // Blur closes the list; the option's mousedown fires first so a pick still lands.
+    el.finderInput.addEventListener("blur", function () {
+      setTimeout(closeFinder, 100);
+    });
+
+    // Escape closes the dependency modal first, then the drawer, then backs out.
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape") return;
-      if (state.drawerOpen) setDrawer(false);
+      if (isDepModalOpen()) closeDepModal();
+      else if (!el.finderList.hidden) { closeFinder(); el.finderInput.blur(); }
+      else if (state.drawerOpen) setDrawer(false);
       else if (state.view === "work") leaveMode();
     });
 
