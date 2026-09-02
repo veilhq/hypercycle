@@ -110,6 +110,83 @@ CATEGORY_LABELS = {
 }
 CATEGORY_ORDER = ["images", "vector", "audio", "video", "documents", "fetch"]
 
+# ---------------------------------------------------------------------------
+# Conversion modes
+# ---------------------------------------------------------------------------
+# A mode is what the operator picks on the routing screen. It is coarser than a
+# category: "Images" accepts raster files as well as SVG and PDF, because from
+# the operator's point of view all of those are "an image I want converted".
+# Adding a mode here adds a button to the routing screen — nothing else changes.
+
+MODES = [
+    {
+        "id": "images",
+        "label": "Images",
+        "categories": ["images", "vector"],
+        "blurb": "raster, vector, and PDF pages",
+    },
+    {
+        "id": "audio",
+        "label": "Audio",
+        "categories": ["audio"],
+        "blurb": "requires the ffmpeg engine",
+    },
+    {
+        "id": "video",
+        "label": "Video",
+        "categories": ["video"],
+        "blurb": "requires the ffmpeg engine",
+    },
+    {
+        "id": "documents",
+        "label": "Documents",
+        "categories": ["documents"],
+        "blurb": "requires the pandoc engine",
+    },
+    {
+        "id": "fetch",
+        "label": "From URL",
+        "categories": ["fetch"],
+        "blurb": "fetch media from a link",
+    },
+]
+
+
+def modes() -> list[dict]:
+    """Routing modes with availability resolved against what actually loaded.
+
+    A mode is available only when at least one of its categories has a usable
+    input extension, so the routing screen can never offer a dead end.
+    """
+    readable = readable_extensions()
+    live_categories = {category_for(e) for e in readable}
+
+    out = []
+    for mode in MODES:
+        available = any(c in live_categories for c in mode["categories"])
+        exts = sorted(e for e in readable if category_for(e) in mode["categories"])
+        out.append(
+            {
+                "id": mode["id"],
+                "label": mode["label"],
+                "blurb": mode["blurb"],
+                "categories": mode["categories"],
+                "available": available,
+                "extensions": exts,
+            }
+        )
+    return out
+
+
+def mode_extensions(mode_id: str) -> list[str]:
+    """Input extensions a given mode accepts."""
+    for mode in MODES:
+        if mode["id"] == mode_id:
+            return sorted(
+                e for e in readable_extensions() if category_for(e) in mode["categories"]
+            )
+    return []
+
 
 def category_for(ext: str) -> str:
     """Which queue group an input belongs to."""

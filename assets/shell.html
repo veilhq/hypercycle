@@ -15,45 +15,74 @@
 </style>
 </head>
 <body>
-<div class="hc-app">
+<div class="hc-app" id="hc-app" data-view="route">
 
-  <header class="hc-topbar">
-    <div class="hc-brand">
-      <span class="hc-brand-mark" id="hc-brand-mark"></span>
-      <span class="hc-brand-name">HYPERCYCLE</span>
+  <!-- ============================================================
+       ROUTE — the screen the app opens on
+       ============================================================ -->
+  <section class="hc-route" id="hc-route">
+    <span class="hc-route-mark" id="hc-route-mark"></span>
+    <h1 class="hc-route-greeting" id="hc-route-greeting">What are we converting?</h1>
+    <div class="hc-modes" id="hc-modes"></div>
+    <span class="hc-route-caps" id="hc-caps" data-tooltip="Engine availability"></span>
+  </section>
+
+  <!-- ============================================================
+       WORK — the whole surface is the drop target
+       ============================================================ -->
+  <section class="hc-work" id="hc-work">
+
+    <header class="hc-topbar">
+      <button class="hv-button hc-btn-sm" id="hc-back" aria-label="Back to conversion types">
+        &larr; BACK
+      </button>
+      <span class="hc-work-mode" id="hc-work-mode"></span>
+      <span class="hc-topbar-spacer"></span>
+      <button class="hv-button hc-btn-sm" id="hc-drawer-toggle"
+              aria-expanded="false" aria-controls="hc-drawer">
+        QUEUE <span class="hv-chip hv-chip-outlined-muted" id="hc-queue-count">0</span>
+      </button>
+    </header>
+
+    <!-- Full-bleed drop surface -->
+    <div class="hc-drop" id="hc-dropzone" tabindex="0" role="button"
+         aria-label="Drop files here or click to browse">
+      <span class="hc-drop-mark" id="hc-drop-mark"></span>
+      <span class="hc-drop-label">DROP FILES HERE</span>
+      <span class="hc-drop-sub">or click to browse</span>
+      <span class="hc-drop-formats" id="hc-accepted"></span>
     </div>
-    <span class="hv-chip hv-chip-outlined-muted" id="hc-caps"
-          data-tooltip="Engine availability"></span>
-  </header>
 
-  <main class="hc-main">
-
-    <section class="hc-intake">
-      <div class="hc-intake-drop hv-hover-lift" id="hc-dropzone" tabindex="0"
-           role="button" aria-label="Add files to convert">
-        <span class="hc-intake-mark" id="hc-intake-mark"></span>
-        <span class="hc-intake-copy">
-          <span class="hc-intake-title">DROP FILES OR BROWSE</span>
-          <span class="hc-intake-formats" id="hc-accepted"></span>
-        </span>
+    <!-- Queue drawer — composes .hv-panel-drawer geometry, driven non-modally
+         so files can still be dropped while it is open. -->
+    <aside class="hv-panel-drawer hc-drawer" id="hc-drawer" aria-label="Conversion queue">
+      <div class="hc-drawer-head">
+        <span class="hc-drawer-title">QUEUE</span>
+        <span class="hc-bar-summary" id="hc-summary"></span>
+        <button class="hv-button hc-btn-sm" id="hc-drawer-close" aria-label="Close queue">
+          &rarr;
+        </button>
       </div>
-    </section>
 
-    <section class="hc-groups" id="hc-groups"></section>
-    <p class="hc-empty" id="hc-empty">Nothing queued.</p>
+      <div class="hc-groups" id="hc-groups"></div>
+      <p class="hc-empty" id="hc-empty">Nothing queued.</p>
 
-    <section class="hc-bar">
-      <div class="hc-bar-dest">
-        <span class="hc-key">into</span>
-        <span class="hc-bar-path" id="hc-outdir">No destination chosen</span>
-        <button class="hv-button hc-btn-sm" id="hc-pick-outdir">CHANGE</button>
+      <div class="hc-drawer-foot">
+        <div class="hc-dest">
+          <span class="hc-key">into</span>
+          <span class="hc-dest-path" id="hc-outdir">No destination chosen</span>
+        </div>
+        <div class="hc-drawer-actions">
+          <button class="hv-button hc-btn-sm" id="hc-pick-outdir">CHANGE</button>
+          <button class="hv-button hc-btn-sm" id="hc-clear" disabled>CLEAR DONE</button>
+          <button class="hv-button hv-button-primary hc-btn-sm" id="hc-start" disabled>
+            CONVERT
+          </button>
+        </div>
       </div>
-      <span class="hc-bar-summary" id="hc-summary"></span>
-      <button class="hv-button hc-btn-sm" id="hc-clear" disabled>CLEAR DONE</button>
-      <button class="hv-button hv-button-primary hc-btn-sm" id="hc-start" disabled>CONVERT</button>
-    </section>
+    </aside>
 
-  </main>
+  </section>
 
   <div class="hc-toast-host" id="hc-toast-host" aria-live="polite"></div>
 </div>

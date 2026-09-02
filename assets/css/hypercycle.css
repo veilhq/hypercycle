@@ -1,10 +1,9 @@
 /* Hypercycle — app-local styles.
 
    Everything that exists as a Hyperkit primitive is composed from Hyperkit
-   rather than redefined here: .hv-button, .hv-input, .hv-chip, .hv-row,
-   .hv-noise-field, .hv-section-quiet, .hv-hover-lift. What remains below is
-   layout and structure specific to the converter surface, expressed entirely in
-   tokens. No colors, sizes, or motion values are literal. */
+   rather than redefined here: .hv-button, .hv-chip, .hv-panel-drawer. What
+   remains is layout specific to the converter, expressed in tokens. No literal
+   colours, sizes, or durations. */
 
 html, body {
   height: 100%;
@@ -25,142 +24,284 @@ body {
 }
 
 .hc-app {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100vh;
+  overflow: hidden;
 }
 
-/* --- Topbar --- */
+/* Two top-level views, swapped by the data-view attribute on .hc-app. */
+.hc-route,
+.hc-work { display: none; height: 100%; }
+
+.hc-app[data-view="route"] .hc-route { display: flex; }
+.hc-app[data-view="work"]  .hc-work  { display: flex; }
+
+/* ============================================================
+   ROUTE — icon, greeting, and one button per conversion mode
+   ============================================================ */
+
+.hc-route {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  text-align: center;
+  animation: fadeSlideIn var(--motion-slow) var(--ease) both;
+}
+
+.hc-route-mark {
+  display: inline-flex;
+  width: 72px;
+  height: 78px;
+  color: var(--accent);
+}
+
+.hc-route-mark svg { width: 100%; height: 100%; }
+
+.hc-route-greeting {
+  margin: 0;
+  font-size: var(--fs-hero);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--text-bright);
+}
+
+.hc-modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  max-width: 60ch;
+}
+
+/* Mode buttons are deliberately larger than a standard .hv-button — this is the
+   primary choice in the app, so it gets weight. */
+.hc-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 15ch;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease),
+              background var(--motion-fast) var(--ease),
+              transform var(--motion-fast) var(--ease);
+}
+
+.hc-mode:hover:not(:disabled),
+.hc-mode:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.hc-mode:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hc-mode-label {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.1em;
+  color: var(--text-bright);
+  text-transform: uppercase;
+}
+
+.hc-mode:hover:not(:disabled) .hc-mode-label { color: var(--accent); }
+
+.hc-mode-blurb {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.hc-route-caps {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.hc-route-caps.hc-caps-degraded { color: var(--warning); }
+
+/* ============================================================
+   WORK — full-bleed drop surface plus the queue drawer
+   ============================================================ */
+
+.hc-work {
+  flex-direction: column;
+  position: relative;
+}
 
 .hc-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-hair) solid var(--border);
+  flex: 0 0 auto;
+  z-index: var(--z-topbar);
+  background: var(--bg);
+}
+
+.hc-topbar-spacer { flex: 1 1 auto; }
+
+.hc-work-mode {
+  font-size: var(--fs-caption);
+  letter-spacing: 0.12em;
+  color: var(--text-bright);
+  text-transform: uppercase;
+}
+
+/* The entire remaining surface is the drop target. */
+.hc-drop {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+  cursor: pointer;
+  border: var(--border-rail) dashed transparent;
+  transition: background var(--motion-fast) var(--ease),
+              border-color var(--motion-fast) var(--ease);
+}
+
+.hc-drop:hover,
+.hc-drop:focus-visible {
+  background: var(--accent-glow);
+  outline: none;
+}
+
+.hc-drop.hc-dragover {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+}
+
+.hc-drop-mark {
+  display: inline-flex;
+  width: 56px;
+  height: 60px;
+  color: var(--border-strong);
+  transition: color var(--motion-base) var(--ease),
+              transform var(--motion-base) var(--ease);
+}
+
+.hc-drop-mark svg { width: 100%; height: 100%; }
+
+.hc-drop:hover .hc-drop-mark,
+.hc-drop.hc-dragover .hc-drop-mark {
+  color: var(--accent);
+  transform: scale(1.04);
+}
+
+.hc-drop-label {
+  font-size: var(--fs-heading);
+  letter-spacing: 0.14em;
+  color: var(--text-bright);
+}
+
+.hc-drop-sub {
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}
+
+.hc-drop-formats {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  max-width: 56ch;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   DRAWER — composes .hv-panel-drawer for geometry and transition.
+   Driven by .hc-drawer-open rather than .hv-overlay.visible so there is no
+   modal backdrop: files remain droppable while the queue is showing.
+   ============================================================ */
+
+.hc-drawer {
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-dropdown);
+}
+
+.hc-drawer.hc-drawer-open { transform: translateX(0); }
+
+.hc-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
   border-bottom: var(--border-hair) solid var(--border);
   flex: 0 0 auto;
 }
 
-.hc-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.hc-brand-mark {
-  display: inline-flex;
-  width: var(--space-4);
-  height: var(--space-4);
-  color: var(--accent);
-}
-
-.hc-brand-mark svg {
-  width: 100%;
-  height: 100%;
-}
-
-.hc-brand-name {
-  font-size: var(--fs-label);
+.hc-drawer-title {
+  font-size: var(--fs-caption);
   letter-spacing: 0.12em;
   color: var(--text-bright);
 }
 
-/* Degraded engine state promotes the caps chip from muted to warning weight. */
-#hc-caps.hc-caps-degraded {
-  color: var(--warning);
-  border-color: var(--warning);
-}
-
-/* --- Layout --- */
-
-.hc-main {
+.hc-drawer-foot {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: var(--border-hair) solid var(--border);
+  flex: 0 0 auto;
+}
+
+.hc-dest {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.hc-dest-path {
+  font-size: var(--fs-micro);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-drawer-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.hc-bar-summary {
   flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* --- Intake --- */
-/* Compact by design: the queue is what should own vertical space once work is
-   loaded. Composes .hv-hover-lift. */
-
-.hc-intake {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-4);
-  border-bottom: var(--border-hair) solid var(--border);
-  flex: 0 0 auto;
-}
-
-.hc-intake-drop {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-hair) dashed var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  cursor: pointer;
-}
-
-.hc-intake-drop:hover,
-.hc-intake-drop:focus-visible {
-  border-color: var(--accent);
-  background: var(--bg-card-hover);
-  outline: none;
-}
-
-.hc-intake-drop.hc-dragover {
-  border-style: solid;
-  border-color: var(--accent);
-  background: var(--accent-glow);
-}
-
-.hc-intake-mark {
-  display: inline-flex;
-  width: var(--space-6);
-  height: var(--space-6);
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.hc-intake-mark svg { width: 100%; height: 100%; }
-
-.hc-intake-copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-1);
-  text-align: left;
-}
-
-.hc-intake-title {
-  font-size: var(--fs-caption);
-  letter-spacing: 0.1em;
-  color: var(--text-bright);
-}
-
-.hc-intake-formats {
   font-size: var(--fs-micro);
   letter-spacing: 0.08em;
   color: var(--text-dim);
-  max-width: 52ch;
-  line-height: 1.5;
+  white-space: nowrap;
 }
 
 /* --- Groups --- */
-/* One group per category, each owning its own target format. A mixed batch then
-   stays coherent rather than sharing a single target that cannot apply to all of
-   it. With one category present this reads as a plain queue. */
+/* One group per category, each owning its own target format, so a mixed batch
+   stays coherent instead of sharing a target that cannot apply to all of it. */
 
 .hc-groups {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
 }
 
 .hc-group {
@@ -175,12 +316,13 @@ body {
 .hc-group-head {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-2) 0;
+  flex-wrap: wrap;
 }
 
 .hc-group-name {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-micro);
   letter-spacing: 0.12em;
   color: var(--text-bright);
   text-transform: uppercase;
@@ -191,7 +333,7 @@ body {
 .hc-group-field {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .hc-key {
@@ -201,15 +343,14 @@ body {
   text-transform: uppercase;
 }
 
-/* Target select sits in the group header, sized to content. */
 .hc-target {
   background: var(--bg);
   color: var(--accent);
   font: inherit;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-micro);
   border: var(--border-hair) solid var(--border-strong);
   border-radius: var(--radius);
-  padding: var(--space-0-1) var(--space-2);
+  padding: var(--space-0-1) var(--space-1);
 }
 
 .hc-target:focus-visible {
@@ -218,42 +359,35 @@ body {
 }
 
 /* --- Job rows --- */
-/* Four columns: state, name, size, format pair. Sizes and the pair are real
-   information rather than decoration, which is the utility half of the design. */
 
 .hc-job {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: var(--space-3);
-  padding: var(--space-2) var(--space-1);
+  column-gap: var(--space-2);
+  padding: var(--space-1) var(--space-1);
   border-bottom: var(--border-hair) solid transparent;
-  transition: background var(--motion-fast) var(--ease),
-              border-color var(--motion-fast) var(--ease);
+  transition: background var(--motion-fast) var(--ease);
 }
 
-.hc-job:hover {
-  background: var(--bg-card-hover);
-  border-bottom-color: var(--accent-border);
-}
+.hc-job:hover { background: var(--bg-card-hover); }
 
 .hc-job-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-micro);
 }
 
 .hc-job-size {
   font-size: var(--fs-micro);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  min-width: 8ch;
   text-align: right;
 }
 
-/* Format pair as chips — source quiet, target accented. */
-.hc-pair {
+.hc-job-pair {
+  grid-column: 2 / -1;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -275,7 +409,7 @@ body {
 
 .hc-job-error {
   grid-column: 1 / -1;
-  font-size: var(--fs-detail);
+  font-size: var(--fs-micro);
   color: var(--error);
   line-height: 1.5;
   word-break: break-word;
@@ -287,46 +421,12 @@ body {
   border-color: var(--error);
 }
 
-/* .hv-button is sized for standalone use; these are compact in-bar variants. */
+/* .hv-button is sized for standalone use; these are compact bar variants. */
 .hc-btn-sm {
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-2);
   font-size: var(--fs-micro);
   min-height: auto;
-}
-
-/* --- Bottom bar --- */
-/* Only genuinely global controls live here. */
-
-.hc-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-top: var(--border-hair) solid var(--border);
-  flex: 0 0 auto;
-}
-
-.hc-bar-dest {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.hc-bar-path {
-  font-size: var(--fs-caption);
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hc-bar-summary {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  white-space: nowrap;
+  gap: var(--space-1);
 }
 
 .hc-empty {
@@ -336,17 +436,18 @@ body {
   justify-content: center;
   margin: 0;
   color: var(--text-dim);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-micro);
 }
 
 .hc-empty.hc-hidden { display: none; }
+.hc-groups.hc-hidden { display: none; }
 
 /* --- Toasts --- */
 
 .hc-toast-host {
   position: fixed;
   bottom: var(--space-4);
-  right: var(--space-4);
+  left: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

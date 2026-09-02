@@ -38,8 +38,11 @@ HYPERVISOR_DIR = HYPERSPACE_ROOT / ".hypervisor"
 # deprecated for accent/warm/cool/comp and goes stale on the first palette change.
 PREFERENCES = HYPERVISOR_DIR / "preferences.json"
 THEME_DEFAULTS = HYPERVISOR_DIR / "theme-defaults.json"
-BRAND_SVG = HYPERVISOR_DIR / "assets" / "SVG" / "CYCLE.svg"
-ICON_FILE = HYPERCYCLE_DIR / "hypercycle.ico"
+# The app owns its own brand assets so relocating this directory does not break
+# its identity — only the shared palette is read from Hypervisor.
+ICONS_DIR = HYPERCYCLE_DIR / "assets" / "icons"
+BRAND_SVG = ICONS_DIR / "hypercycle.svg"
+ICON_FILE = ICONS_DIR / "hypercycle.ico"
 # Native window chrome is set before any stylesheet loads, so it cannot read a
 # design token. Mirrors the --bg token value to avoid a white flash on open.
 WINDOW_BG = "#030305"
@@ -241,6 +244,7 @@ class Api:
             "capabilities": caps,
             "accepted": engines.readable_extensions(),
             "targets": engines.target_extensions(),
+            "modes": engines.modes(),
             "categories": cats,
             "category_order": order,
             "default_targets": defaults,
@@ -291,16 +295,23 @@ class Api:
 
     # -- file intake -----------------------------------------------------
 
-    def pick_files(self):
-        """Native multi-select file dialog, filtered to supported inputs."""
+    def pick_files(self, mode_id=None):
+        """Native multi-select dialog, filtered to what the active mode accepts."""
         if not self._window:
             return []
-        exts = engines.readable_extensions()
+        exts = engines.mode_extensions(mode_id) if mode_id else []
+        if not exts:
+            exts = engines.readable_extensions()
         pattern = ";".join(f"*.{e}" for e in exts)
+        label = "Supported files"
+        for mode in engines.MODES:
+            if mode["id"] == mode_id:
+                label = mode["label"]
+                break
         result = self._window.create_file_dialog(
             webview.OPEN_DIALOG,
             allow_multiple=True,
-            file_types=(f"Supported images ({pattern})", "All files (*.*)"),
+            file_types=(f"{label} ({pattern})", "All files (*.*)"),
         )
         # OPEN_DIALOG returns a sequence; SAVE_DIALOG returns a bare string.
         if not result:

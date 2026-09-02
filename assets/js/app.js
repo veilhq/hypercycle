@@ -1,4 +1,4 @@
-/* Hypercycle frontend — intake, category groups, and the conversion queue.
+/* Hypercycle frontend — routing screen, full-surface drop target, queue drawer.
    Talks to the Python bridge exposed on window.pywebview.api. */
 
 (function hypercycle() {
@@ -9,15 +9,19 @@
 
   var el = {};
   var state = {
+    view: "route",
+    mode: null,
     outputDir: null,
-    targets: [],
     accepted: [],
+    modes: [],
     categories: {},
     order: [],
     defaults: {},
     groupTargets: {},
     jobs: [],
     running: false,
+    drawerOpen: false,
+    brandSvg: "",
   };
 
   var asciiTick = 0;
@@ -40,16 +44,25 @@
   // --- Boot ----------------------------------------------------------------
 
   function boot() {
-    el.brandMark = byId("hc-brand-mark");
-    el.intakeMark = byId("hc-intake-mark");
+    el.app = byId("hc-app");
+    el.routeMark = byId("hc-route-mark");
+    el.greeting = byId("hc-route-greeting");
+    el.modes = byId("hc-modes");
     el.caps = byId("hc-caps");
+    el.back = byId("hc-back");
+    el.workMode = byId("hc-work-mode");
+    el.drawerToggle = byId("hc-drawer-toggle");
+    el.drawerClose = byId("hc-drawer-close");
+    el.drawer = byId("hc-drawer");
+    el.queueCount = byId("hc-queue-count");
     el.dropzone = byId("hc-dropzone");
+    el.dropMark = byId("hc-drop-mark");
     el.accepted = byId("hc-accepted");
     el.groups = byId("hc-groups");
     el.empty = byId("hc-empty");
+    el.summary = byId("hc-summary");
     el.outdir = byId("hc-outdir");
     el.pickOutdir = byId("hc-pick-outdir");
-    el.summary = byId("hc-summary");
     el.start = byId("hc-start");
     el.clear = byId("hc-clear");
     el.toastHost = byId("hc-toast-host");
@@ -70,15 +83,16 @@
 
   function loadInitialState() {
     api().get_startup_state().then(function (data) {
-      state.targets = data.targets || [];
       state.accepted = data.accepted || [];
+      state.modes = data.modes || [];
       state.categories = data.categories || {};
       state.order = data.category_order || [];
       state.defaults = data.default_targets || {};
+      state.brandSvg = data.brand_svg || "";
       applyTheme(data.theme);
-      renderMarks(data.brand_svg);
+      renderMarks();
       renderCaps(data.capabilities || []);
-      renderAccepted();
+      renderModes();
       refreshQueue();
     }).catch(function (err) {
       toast("Startup failed: " + err, true);
@@ -111,41 +125,91 @@
     });
   }
 
-  // --- Static rendering ----------------------------------------------------
+  // --- Route screen --------------------------------------------------------
 
-  function renderMarks(svg) {
-    if (!svg) return;
-    if (el.brandMark) el.brandMark.innerHTML = svg;
-    if (el.intakeMark) el.intakeMark.innerHTML = svg;
+  function renderMarks() {
+    if (!state.brandSvg) return;
+    if (el.routeMark) el.routeMark.innerHTML = state.brandSvg;
+    if (el.dropMark) el.dropMark.innerHTML = state.brandSvg;
   }
 
   function renderCaps(caps) {
     var missing = caps.filter(function (c) { return !c.available; });
     if (!missing.length) {
-      el.caps.textContent = caps.length + " ENGINES READY";
+      el.caps.textContent = caps.length + " engines ready";
       el.caps.classList.remove("hc-caps-degraded");
       el.caps.setAttribute("data-tooltip", caps.map(function (c) {
         return c.name;
       }).join("\n"));
       return;
     }
-    el.caps.textContent = missing.length + " ENGINE(S) UNAVAILABLE";
+    el.caps.textContent = missing.length + " engine(s) unavailable";
     el.caps.classList.add("hc-caps-degraded");
     el.caps.setAttribute("data-tooltip", missing.map(function (c) {
       return c.name + (c.detail ? " — " + c.detail : "");
     }).join("\n"));
   }
 
-  function renderAccepted() {
-    el.accepted.textContent = state.accepted.length
-      ? state.accepted.join(" ").toUpperCase()
-      : "No input formats available.";
+  // One button per mode. Unavailable modes stay visible but disabled so the
+  // routing screen shows the shape of the app rather than a single lonely button.
+  function renderModes() {
+    el.modes.innerHTML = "";
+    state.modes.forEach(function (mode) {
+      var btn = document.createElement("button");
+      btn.className = "hc-mode";
+      btn.disabled = !mode.available;
+      btn.setAttribute("data-mode", mode.id);
+
+      var label = document.createElement("span");
+      label.className = "hc-mode-label";
+      label.textContent = mode.label;
+
+      var blurb = document.createElement("span");
+      blurb.className = "hc-mode-blurb";
+      blurb.textContent = mode.available
+        ? mode.extensions.slice(0, 6).join(" ")
+        : mode.blurb;
+
+      btn.appendChild(label);
+      btn.appendChild(blurb);
+
+      if (mode.available) {
+        btn.addEventListener("click", function () { enterMode(mode); });
+      } else {
+        btn.setAttribute("data-tooltip", mode.blurb);
+      }
+
+      el.modes.appendChild(btn);
+    });
+  }
+
+  // --- View transitions ----------------------------------------------------
+
+  function enterMode(mode) {
+    state.mode = mode;
+    state.view = "work";
+    el.app.setAttribute("data-view", "work");
+    el.workMode.textContent = mode.label;
+    el.accepted.textContent = (mode.extensions || []).join("  ").toUpperCase();
+    setDrawer(state.jobs.length > 0);
+  }
+
+  function leaveMode() {
+    state.view = "route";
+    el.app.setAttribute("data-view", "route");
+    setDrawer(false);
+  }
+
+  function setDrawer(open) {
+    state.drawerOpen = !!open;
+    el.drawer.classList.toggle("hc-drawer-open", state.drawerOpen);
+    el.drawerToggle.setAttribute("aria-expanded", state.drawerOpen ? "true" : "false");
   }
 
   // --- Queue ---------------------------------------------------------------
 
-  // Status maps onto the Hyperkit chip vocabulary: filled accent for the loud
-  // current state, outlined accent for notable, outlined muted for quiet.
+  // Status maps onto the Hyperkit chip vocabulary: outlined accent for notable,
+  // outlined muted for quiet. Converting gets the motion beat instead of a chip.
   var CHIP_VARIANT = {
     pending: "hv-chip-outlined-muted",
     complete: "hv-chip-outlined-accent",
@@ -155,7 +219,6 @@
 
   function stateCell(job) {
     if (job.status === "converting") {
-      // The one motion beat, and only on the row actually doing work.
       var span = document.createElement("span");
       span.className = "hc-cyc";
       span.setAttribute("data-ascii", "1");
@@ -170,7 +233,7 @@
 
   function pairCell(job, target) {
     var wrap = document.createElement("span");
-    wrap.className = "hc-pair";
+    wrap.className = "hc-job-pair";
 
     var from = document.createElement("span");
     from.className = "hv-chip hv-chip-outlined-muted";
@@ -191,13 +254,15 @@
   }
 
   function targetFor(category) {
+    var meta = state.categories[category] || {};
     return state.groupTargets[category]
       || state.defaults[category]
-      || (state.categories[category] || {}).targets[0];
+      || (meta.targets || [])[0];
   }
 
   function renderQueue() {
     el.groups.innerHTML = "";
+    el.queueCount.textContent = String(state.jobs.length);
     el.empty.classList.toggle("hc-hidden", state.jobs.length > 0);
     el.groups.classList.toggle("hc-hidden", state.jobs.length === 0);
 
@@ -216,7 +281,6 @@
       var group = document.createElement("div");
       group.className = "hc-group" + (live ? " hc-group-active" : "");
 
-      // -- header: label, count, and this category's own target format
       var head = document.createElement("div");
       head.className = "hc-group-head";
 
@@ -259,7 +323,6 @@
       head.appendChild(field);
       group.appendChild(head);
 
-      // -- rows
       rows.forEach(function (job) {
         var row = document.createElement("div");
         row.className = "hc-job";
@@ -302,7 +365,7 @@
     if (!state.jobs.length) { el.summary.textContent = ""; return; }
     var n = state.jobs.length;
     el.summary.textContent = n + " file" + (n === 1 ? "" : "s")
-      + " in " + groupCount + " group" + (groupCount === 1 ? "" : "s");
+      + " / " + groupCount + " group" + (groupCount === 1 ? "" : "s");
   }
 
   function updateButtons() {
@@ -342,6 +405,10 @@
   // --- Events --------------------------------------------------------------
 
   function wireEvents() {
+    el.back.addEventListener("click", leaveMode);
+    el.drawerToggle.addEventListener("click", function () { setDrawer(!state.drawerOpen); });
+    el.drawerClose.addEventListener("click", function () { setDrawer(false); });
+
     el.dropzone.addEventListener("click", browseFiles);
     el.dropzone.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.key === " ") {
@@ -370,6 +437,13 @@
       api().clear_finished().then(refreshQueue);
     });
 
+    // Escape closes the drawer, then backs out of the mode.
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (state.drawerOpen) setDrawer(false);
+      else if (state.view === "work") leaveMode();
+    });
+
     // Palette changes are made in Hypervisor, so re-read on focus.
     window.addEventListener("focus", function () {
       if (!api()) return;
@@ -393,7 +467,7 @@
   }
 
   function browseFiles() {
-    api().pick_files().then(function (paths) {
+    api().pick_files(state.mode ? state.mode.id : null).then(function (paths) {
       if (paths && paths.length) enqueue(paths);
     });
   }
@@ -403,7 +477,9 @@
       if (res.rejected && res.rejected.length) {
         toast(res.rejected.length + " file(s) skipped: unsupported input.", true);
       }
+      // Dropping work is the cue to reveal the queue.
       refreshQueue();
+      if ((res.added || []).length) setDrawer(true);
     });
   }
 

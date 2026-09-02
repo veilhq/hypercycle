@@ -5,7 +5,7 @@ setting it up on a new machine to confirm every declared format actually works,
 rather than discovering a gap mid-batch.
 
 Usage:
-    python selftest.py
+    python test/selftest.py
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Lives in test/, so the app modules are one level up.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import engines  # noqa: E402
 from convert_manager import ConvertManager, Status  # noqa: E402
