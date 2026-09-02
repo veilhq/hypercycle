@@ -1,0 +1,18 @@
+# Hypercycle dependencies
+# Install with: pip install -r requirements.txt
+#
+# Every entry is a self-contained wheel — no system packages, no compiler, and
+# nothing downloaded on first use. That is what keeps the app portable.
+
+pywebview>=5.0
+
+# Raster image encode/decode. AVIF support is native from Pillow 11.3 onward,
+# which is why no separate AVIF plugin is listed.
+pillow>=11.3
+
+# HEIC/HEIF only. pillow-heif 1.x no longer registers an AVIF opener because
+# Pillow handles AVIF itself.
+pillow-heif>=1.6.0
+
+# SVG and PDF rasterisation.
+PyMuPDF>=1.25.0

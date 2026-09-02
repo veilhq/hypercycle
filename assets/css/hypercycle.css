@@ -1,0 +1,369 @@
+/* Hypercycle — app-local styles.
+
+   Everything that exists as a Hyperkit primitive is composed from Hyperkit
+   rather than redefined here: .hv-button, .hv-input, .hv-chip, .hv-row,
+   .hv-noise-field, .hv-section-quiet, .hv-hover-lift. What remains below is
+   layout and structure specific to the converter surface, expressed entirely in
+   tokens. No colors, sizes, or motion values are literal. */
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Hyperkit sets no base font-family — each app establishes it, the same way
+   Hyperline does in its own layout CSS. */
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  cursor: default;
+}
+
+.hc-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* --- Topbar --- */
+
+.hc-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-hair) solid var(--border);
+  flex: 0 0 auto;
+}
+
+.hc-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hc-brand-mark {
+  display: inline-flex;
+  width: var(--space-4);
+  height: var(--space-4);
+  color: var(--accent);
+}
+
+.hc-brand-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hc-brand-name {
+  font-size: var(--fs-label);
+  letter-spacing: 0.12em;
+  color: var(--text-bright);
+}
+
+/* Degraded engine state promotes the caps chip from muted to warning weight. */
+#hc-caps.hc-caps-degraded {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+/* --- Layout --- */
+
+.hc-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* --- Intake --- */
+/* Compact by design: the queue is what should own vertical space once work is
+   loaded. Composes .hv-hover-lift. */
+
+.hc-intake {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  border-bottom: var(--border-hair) solid var(--border);
+  flex: 0 0 auto;
+}
+
+.hc-intake-drop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-hair) dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+
+.hc-intake-drop:hover,
+.hc-intake-drop:focus-visible {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+  outline: none;
+}
+
+.hc-intake-drop.hc-dragover {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.hc-intake-mark {
+  display: inline-flex;
+  width: var(--space-6);
+  height: var(--space-6);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.hc-intake-mark svg { width: 100%; height: 100%; }
+
+.hc-intake-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-1);
+  text-align: left;
+}
+
+.hc-intake-title {
+  font-size: var(--fs-caption);
+  letter-spacing: 0.1em;
+  color: var(--text-bright);
+}
+
+.hc-intake-formats {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  max-width: 52ch;
+  line-height: 1.5;
+}
+
+/* --- Groups --- */
+/* One group per category, each owning its own target format. A mixed batch then
+   stays coherent rather than sharing a single target that cannot apply to all of
+   it. With one category present this reads as a plain queue. */
+
+.hc-groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-4);
+}
+
+.hc-group {
+  border-left: var(--border-rail) solid var(--border);
+  padding-left: var(--space-3);
+  margin-bottom: var(--space-4);
+  transition: border-left-color var(--motion-base) var(--ease);
+}
+
+.hc-group.hc-group-active { border-left-color: var(--accent); }
+
+.hc-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.hc-group-name {
+  font-size: var(--fs-caption);
+  letter-spacing: 0.12em;
+  color: var(--text-bright);
+  text-transform: uppercase;
+}
+
+.hc-group-spacer { flex: 1 1 auto; }
+
+.hc-group-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hc-key {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* Target select sits in the group header, sized to content. */
+.hc-target {
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-caption);
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-0-1) var(--space-2);
+}
+
+.hc-target:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* --- Job rows --- */
+/* Four columns: state, name, size, format pair. Sizes and the pair are real
+   information rather than decoration, which is the utility half of the design. */
+
+.hc-job {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: var(--border-hair) solid transparent;
+  transition: background var(--motion-fast) var(--ease),
+              border-color var(--motion-fast) var(--ease);
+}
+
+.hc-job:hover {
+  background: var(--bg-card-hover);
+  border-bottom-color: var(--accent-border);
+}
+
+.hc-job-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-caption);
+}
+
+.hc-job-size {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 8ch;
+  text-align: right;
+}
+
+/* Format pair as chips — source quiet, target accented. */
+.hc-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.hc-pair-arrow {
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+}
+
+/* ASCII cycle frames — the single motion beat, only on the active row. */
+.hc-cyc {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: center;
+  color: var(--accent);
+  font-size: var(--fs-caption);
+}
+
+.hc-job-error {
+  grid-column: 1 / -1;
+  font-size: var(--fs-detail);
+  color: var(--error);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* Failed reads as a chip in the error colour rather than a fourth chip variant. */
+.hc-chip-failed {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+/* .hv-button is sized for standalone use; these are compact in-bar variants. */
+.hc-btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fs-micro);
+  min-height: auto;
+}
+
+/* --- Bottom bar --- */
+/* Only genuinely global controls live here. */
+
+.hc-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-hair) solid var(--border);
+  flex: 0 0 auto;
+}
+
+.hc-bar-dest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-bar-path {
+  font-size: var(--fs-caption);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-bar-summary {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.hc-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-caption);
+}
+
+.hc-empty.hc-hidden { display: none; }
+
+/* --- Toasts --- */
+
+.hc-toast-host {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: var(--z-toast);
+  pointer-events: none;
+}
+
+.hc-toast {
+  background: var(--bg-elevated);
+  border: var(--border-hair) solid var(--border-strong);
+  border-left: var(--border-rail) solid var(--accent);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-caption);
+  color: var(--text);
+  max-width: 46ch;
+  animation: fadeSlideIn var(--motion-fast) var(--ease) both;
+}
+
+.hc-toast.hc-toast-error { border-left-color: var(--error); }

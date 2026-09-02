@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypercycle</title>
+<!-- Departure Mono is the ecosystem typeface. Hyperkit's tokens.css also carries
+     an @import for it, but a <link> loads in parallel instead of blocking on CSS
+     parse, and matches how HyperField pulls it in. Offline, the stack falls back
+     through JetBrains Mono to the system monospace. -->
+<link rel="preconnect" href="https://db.onlinewebfonts.com">
+<link rel="stylesheet" href="https://db.onlinewebfonts.com/c/4571adf8e6d8270ea61a4f43a3ef31d2?family=Departure+Mono">
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<div class="hc-app">
+
+  <header class="hc-topbar">
+    <div class="hc-brand">
+      <span class="hc-brand-mark" id="hc-brand-mark"></span>
+      <span class="hc-brand-name">HYPERCYCLE</span>
+    </div>
+    <span class="hv-chip hv-chip-outlined-muted" id="hc-caps"
+          data-tooltip="Engine availability"></span>
+  </header>
+
+  <main class="hc-main">
+
+    <section class="hc-intake">
+      <div class="hc-intake-drop hv-hover-lift" id="hc-dropzone" tabindex="0"
+           role="button" aria-label="Add files to convert">
+        <span class="hc-intake-mark" id="hc-intake-mark"></span>
+        <span class="hc-intake-copy">
+          <span class="hc-intake-title">DROP FILES OR BROWSE</span>
+          <span class="hc-intake-formats" id="hc-accepted"></span>
+        </span>
+      </div>
+    </section>
+
+    <section class="hc-groups" id="hc-groups"></section>
+    <p class="hc-empty" id="hc-empty">Nothing queued.</p>
+
+    <section class="hc-bar">
+      <div class="hc-bar-dest">
+        <span class="hc-key">into</span>
+        <span class="hc-bar-path" id="hc-outdir">No destination chosen</span>
+        <button class="hv-button hc-btn-sm" id="hc-pick-outdir">CHANGE</button>
+      </div>
+      <span class="hc-bar-summary" id="hc-summary"></span>
+      <button class="hv-button hc-btn-sm" id="hc-clear" disabled>CLEAR DONE</button>
+      <button class="hv-button hv-button-primary hc-btn-sm" id="hc-start" disabled>CONVERT</button>
+    </section>
+
+  </main>
+
+  <div class="hc-toast-host" id="hc-toast-host" aria-live="polite"></div>
+</div>
+
+{{JS_BLOCKS}}
+</body>
+</html>
