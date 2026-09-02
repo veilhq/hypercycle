@@ -16,3 +16,14 @@ pillow-heif>=1.6.0
 
 # SVG and PDF rasterisation.
 PyMuPDF>=1.25.0
+
+# Audio and video conversion. Ships the ffmpeg binary inside the wheel and
+# resolves it via get_ffmpeg_exe() — no system ffmpeg, no PATH lookup. Note
+# this bundles ffmpeg only, not ffprobe, so duration is read from ffmpeg's own
+# stderr rather than a separate probe.
+imageio-ffmpeg>=0.6.0
+
+# Document conversion. The _binary distribution bundles the pandoc executable;
+# the plain pypandoc package does not. PDF output additionally needs a separate
+# PDF engine that pandoc does not bundle, so PDF targets are gated at runtime.
+pypandoc_binary>=1.13

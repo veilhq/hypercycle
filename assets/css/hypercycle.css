@@ -1,7 +1,7 @@
 /* Hypercycle — app-local styles.
 
    Everything that exists as a Hyperkit primitive is composed from Hyperkit
-   rather than redefined here: .hv-button, .hv-chip, .hv-panel-drawer. What
+   rather than redefined here: .action-button, .status-chip, .side-drawer. What
    remains is layout specific to the converter, expressed in tokens. No literal
    colours, sizes, or durations. */
 
@@ -75,7 +75,7 @@ body {
   max-width: 60ch;
 }
 
-/* Mode buttons are deliberately larger than a standard .hv-button — this is the
+/* Mode buttons are deliberately larger than a standard .action-button — this is the
    primary choice in the app, so it gets weight. */
 .hc-mode {
   display: flex;
@@ -228,8 +228,8 @@ body {
 }
 
 /* ============================================================
-   DRAWER — composes .hv-panel-drawer for geometry and transition.
-   Driven by .hc-drawer-open rather than .hv-overlay.visible so there is no
+   DRAWER — composes .side-drawer for geometry and transition.
+   Driven by .hc-drawer-open rather than .modal-overlay.visible so there is no
    modal backdrop: files remain droppable while the queue is showing.
    ============================================================ */
 
@@ -362,7 +362,7 @@ body {
 }
 
 /* --- Job rows --- */
-/* Each row composes .hk-card for the bordered surface and hover lift; only the
+/* Each row composes .content-card for the bordered surface and hover lift; only the
    internal grid is app-specific. Cards are spaced apart rather than sharing
    dividers, so a queued batch reads as discrete objects. */
 
@@ -440,7 +440,7 @@ body {
   min-width: var(--space-4);
 }
 
-/* .hv-button is sized for standalone use; these are compact bar variants. */
+/* .action-button is sized for standalone use; these are compact bar variants. */
 .hc-btn-sm {
   padding: var(--space-1) var(--space-2);
   font-size: var(--fs-micro);

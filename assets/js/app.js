@@ -238,10 +238,10 @@
   // Status maps onto the Hyperkit chip vocabulary: outlined accent for notable,
   // outlined muted for quiet. Converting gets the motion beat instead of a chip.
   var CHIP_VARIANT = {
-    pending: "hv-chip-outlined-muted",
-    complete: "hv-chip-outlined-accent",
-    failed: "hv-chip-outlined-accent hc-chip-failed",
-    cancelled: "hv-chip-outlined-muted",
+    pending: "status-chip-outlined-muted",
+    complete: "status-chip-outlined-accent",
+    failed: "status-chip-outlined-accent hc-chip-failed",
+    cancelled: "status-chip-outlined-muted",
   };
 
   function stateCell(job) {
@@ -253,7 +253,7 @@
       return span;
     }
     var chip = document.createElement("span");
-    chip.className = "hv-chip " + (CHIP_VARIANT[job.status] || "hv-chip-outlined-muted");
+    chip.className = "status-chip " + (CHIP_VARIANT[job.status] || "status-chip-outlined-muted");
     chip.textContent = job.status;
     return chip;
   }
@@ -263,7 +263,7 @@
     wrap.className = "hc-job-pair";
 
     var from = document.createElement("span");
-    from.className = "hv-chip hv-chip-outlined-muted";
+    from.className = "status-chip status-chip-outlined-muted";
     from.textContent = job.source_ext;
 
     var arrow = document.createElement("span");
@@ -271,7 +271,7 @@
     arrow.textContent = "\u2192";
 
     var to = document.createElement("span");
-    to.className = "hv-chip hv-chip-outlined-accent";
+    to.className = "status-chip status-chip-outlined-accent";
     to.textContent = target;
 
     wrap.appendChild(from);
@@ -316,7 +316,7 @@
       name.textContent = meta.label;
 
       var count = document.createElement("span");
-      count.className = "hv-chip hv-chip-outlined-muted";
+      count.className = "status-chip status-chip-outlined-muted";
       count.textContent = String(rows.length);
 
       var spacer = document.createElement("span");
@@ -352,7 +352,7 @@
 
       rows.forEach(function (job) {
         var row = document.createElement("div");
-        row.className = "hc-job hk-card";
+        row.className = "hc-job content-card";
 
         row.appendChild(stateCell(job));
 
@@ -372,7 +372,7 @@
         // its current file (in-process conversions are quick) then stops.
         if (job.status === "pending" || job.status === "converting") {
           var cancel = document.createElement("button");
-          cancel.className = "hv-button hv-button-danger hc-job-cancel";
+          cancel.className = "action-button action-button-danger hc-job-cancel";
           cancel.textContent = "\u00d7";
           cancel.setAttribute("aria-label", "Cancel " + job.name);
           cancel.setAttribute("data-tooltip", "Cancel");

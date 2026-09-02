@@ -56,6 +56,35 @@ except Exception as exc:  # pragma: no cover - dependency missing
     _HAS_MUPDF = False
     _PROBE_ERRORS["pymupdf"] = str(exc)
 
+# ffmpeg drives audio and video. The binary ships inside the imageio-ffmpeg
+# wheel and is resolved through get_ffmpeg_exe() — never a PATH search — so the
+# portability guarantee holds. Resolution is attempted at import so an ffmpeg
+# that is installed-but-broken disables the category instead of failing a batch.
+_FFMPEG_EXE: str | None = None
+_HAS_FFMPEG = False
+try:
+    import imageio_ffmpeg
+
+    _FFMPEG_EXE = imageio_ffmpeg.get_ffmpeg_exe()
+    _HAS_FFMPEG = bool(_FFMPEG_EXE)
+except Exception as exc:  # pragma: no cover - dependency missing
+    imageio_ffmpeg = None  # type: ignore[assignment]
+    _PROBE_ERRORS["ffmpeg"] = str(exc)
+
+# pandoc drives document conversion. The _binary distribution bundles the
+# pandoc executable; resolving its path here confirms the bundled binary is
+# present rather than relying on a system pandoc.
+_PANDOC_PATH: str | None = None
+_HAS_PANDOC = False
+try:
+    import pypandoc
+
+    _PANDOC_PATH = pypandoc.get_pandoc_path()
+    _HAS_PANDOC = bool(_PANDOC_PATH)
+except Exception as exc:  # pragma: no cover - dependency missing
+    pypandoc = None  # type: ignore[assignment]
+    _PROBE_ERRORS["pandoc"] = str(exc)
+
 
 # ---------------------------------------------------------------------------
 # Format tables
@@ -85,19 +114,91 @@ _AVIF_RW = {"avif": "AVIF"}
 # targets.
 _MUPDF_READ_ONLY = {"svg", "pdf"}
 
+# Audio formats ffmpeg reads and writes. The value is the ffmpeg codec/muxer
+# hint used to build the command; an empty string means "let ffmpeg pick the
+# default encoder for this container", which covers the common cases.
+_AUDIO_RW = {
+    "mp3": "libmp3lame",
+    "wav": "pcm_s16le",
+    "flac": "flac",
+    "ogg": "libvorbis",
+    "aac": "aac",
+    "m4a": "aac",
+    "opus": "libopus",
+}
+
+# Video formats ffmpeg reads and writes. Value is the default video codec for
+# the container. "gif" is a video *target* only — animated GIF out — while GIF
+# as a still lives in the image tables, so it is intentionally not a video
+# input here.
+_VIDEO_RW = {
+    "mp4": "libx264",
+    "mkv": "libx264",
+    "webm": "libvpx-vp9",
+    "mov": "libx264",
+    "avi": "mpeg4",
+}
+
+# Document formats pandoc handles. Curated to the set the design names rather
+# than pandoc's full graph, so the UI stays legible. PDF is deliberately absent
+# — it needs a separate PDF engine pandoc does not bundle and is gated below.
+_DOC_READ = {"md", "markdown", "docx", "html", "htm", "rtf", "epub", "odt", "latex", "tex", "txt"}
+_DOC_WRITE = {"md", "docx", "html", "rtf", "epub", "odt", "latex", "txt"}
+
+# pandoc's own format identifiers differ from file extensions in a few cases.
+_PANDOC_FORMAT = {
+    "md": "markdown",
+    "markdown": "markdown",
+    "tex": "latex",
+    "latex": "latex",
+    "htm": "html",
+    "html": "html",
+    "txt": "plain",
+}
+
+# PDF document output needs a PDF engine that pandoc does not bundle. Detect one
+# on PATH so the UI can offer PDF only when it will actually work, and name the
+# missing engine clearly when it will not.
+_PDF_ENGINES = ("pdflatex", "xelatex", "lualatex", "tectonic", "typst",
+                "wkhtmltopdf", "weasyprint", "context", "pdfroff")
+
+
+def _find_pdf_engine() -> str | None:
+    """Return the first available pandoc PDF engine, or None.
+
+    Portability note: none of these ship with the app, so PDF output is an
+    opportunistic extra that lights up only if the operator happens to have a
+    PDF engine installed. The absence of one is surfaced as an actionable
+    message, never a silent failure.
+    """
+    import shutil
+
+    for name in _PDF_ENGINES:
+        if shutil.which(name):
+            return name
+    return None
+
+
+_PDF_ENGINE = _find_pdf_engine()
+
 # JPEG has no alpha channel; anything with transparency needs flattening first.
 _NO_ALPHA = {"JPEG", "BMP"}
 
 # Category each extension belongs to. The UI groups the queue by this, so a mixed
 # batch can carry a different target per category rather than one global target
-# that cannot apply to everything. Audio, video, and document categories join
-# here as their engines land — nothing else needs to change to accommodate them.
+# that cannot apply to everything.
 _CATEGORY_BY_EXT = {}
 for _e in ("png", "jpg", "jpeg", "webp", "tiff", "tif", "bmp", "gif", "ico",
            "heic", "heif", "avif"):
     _CATEGORY_BY_EXT[_e] = "images"
 for _e in ("svg", "pdf"):
     _CATEGORY_BY_EXT[_e] = "vector"
+for _e in _AUDIO_RW:
+    _CATEGORY_BY_EXT[_e] = "audio"
+for _e in _VIDEO_RW:
+    _CATEGORY_BY_EXT[_e] = "video"
+for _e in _DOC_READ | _DOC_WRITE:
+    _CATEGORY_BY_EXT[_e] = "documents"
 
 # Display label and ordering for each category.
 CATEGORY_LABELS = {
@@ -204,12 +305,27 @@ class Capability:
 
 @dataclass
 class ConversionPlan:
-    """A resolved source-to-target conversion."""
+    """A resolved source-to-target conversion.
+
+    `engine` selects the execution path in the manager:
+      - "pillow" / "mupdf": in-process image conversion
+      - "ffmpeg": audio/video subprocess with progress streaming
+      - "pandoc": document subprocess
+
+    The image fields (`pil_format`, `reader`) are only meaningful for the image
+    engines; the media fields (`codec`, `pandoc_from`, `pandoc_to`,
+    `pdf_engine`) are only meaningful for their respective engines.
+    """
 
     source: Path
     target_ext: str
-    pil_format: str
-    reader: str  # "pillow" or "mupdf"
+    engine: str  # "pillow" | "mupdf" | "ffmpeg" | "pandoc"
+    pil_format: str = ""
+    reader: str = ""  # "pillow" or "mupdf" (image engines only)
+    codec: str = ""  # ffmpeg default codec hint
+    pandoc_from: str = ""
+    pandoc_to: str = ""
+    pdf_engine: str = ""
     options: dict = field(default_factory=dict)
 
 
@@ -220,6 +336,14 @@ def capabilities() -> list[Capability]:
         Capability("pillow-heif (HEIC/HEIF)", _HAS_HEIF, _PROBE_ERRORS.get("pillow-heif", "")),
         Capability("Pillow native AVIF", _HAS_AVIF, "" if _HAS_AVIF else "Pillow built without AVIF"),
         Capability("PyMuPDF (SVG/PDF input)", _HAS_MUPDF, _PROBE_ERRORS.get("pymupdf", "")),
+        Capability("ffmpeg (audio/video)", _HAS_FFMPEG, _PROBE_ERRORS.get("ffmpeg", "")),
+        Capability("pandoc (documents)", _HAS_PANDOC, _PROBE_ERRORS.get("pandoc", "")),
+        Capability(
+            "PDF output engine",
+            bool(_PDF_ENGINE),
+            f"using {_PDF_ENGINE}" if _PDF_ENGINE
+            else "no PDF engine on PATH — document-to-PDF unavailable",
+        ),
     ]
     return caps
 
@@ -235,11 +359,37 @@ def readable_extensions() -> list[str]:
         exts |= set(_AVIF_RW)
     if _HAS_MUPDF:
         exts |= _MUPDF_READ_ONLY
+    if _HAS_FFMPEG:
+        exts |= set(_AUDIO_RW) | set(_VIDEO_RW)
+    if _HAS_PANDOC:
+        exts |= _DOC_READ
     return sorted(exts)
 
 
 def target_extensions() -> list[str]:
-    """Extensions the app can produce. Excludes read-only vector/document inputs."""
+    """Every extension the app can produce across all engines.
+
+    UI target lists are built per-source via `targets_for`, which filters to the
+    source's own category. This flat set is the union of everything writable and
+    is used mainly for validation.
+    """
+    exts: set[str] = set()
+    if _HAS_PILLOW:
+        exts |= set(_RASTER_RW)
+    if _HAS_HEIF:
+        exts |= set(_HEIF_RW)
+    if _HAS_AVIF:
+        exts |= set(_AVIF_RW)
+    if _HAS_FFMPEG:
+        exts |= set(_AUDIO_RW) | set(_VIDEO_RW)
+    if _HAS_PANDOC:
+        exts |= set(_DOC_WRITE)
+        if _PDF_ENGINE:
+            exts.add("pdf")
+    return sorted(exts)
+
+
+def _image_targets() -> list[str]:
     exts: set[str] = set()
     if _HAS_PILLOW:
         exts |= set(_RASTER_RW)
@@ -251,18 +401,51 @@ def target_extensions() -> list[str]:
 
 
 def targets_for(source_ext: str) -> list[str]:
-    """Valid targets for a given source, excluding a no-op same-format convert."""
+    """Valid targets for a given source, restricted to the source's category.
+
+    Conversions stay within a category — an mp3 converts to other audio formats,
+    a docx to other document formats — because cross-category conversion (audio
+    out of a video, an image of a document page) is either a distinct feature or
+    meaningless. The one exception is the image category, where raster, HEIF,
+    and AVIF all interconvert and SVG/PDF rasterise into any of them. A no-op
+    same-format target is always excluded.
+    """
     src = _normalise_ext(source_ext)
     if src not in readable_extensions():
         return []
-    canonical = _RASTER_RW.get(src) or _HEIF_RW.get(src) or _AVIF_RW.get(src)
-    out = []
-    for ext in target_extensions():
-        # Skip aliases that resolve to the same encoder (jpg/jpeg, tif/tiff).
-        if canonical and _format_for(ext) == canonical:
-            continue
-        out.append(ext)
-    return out
+
+    category = category_for(src)
+
+    if category in ("images", "vector"):
+        canonical = _RASTER_RW.get(src) or _HEIF_RW.get(src) or _AVIF_RW.get(src)
+        out = []
+        for ext in _image_targets():
+            # Skip aliases that resolve to the same encoder (jpg/jpeg, tif/tiff).
+            if canonical and _format_for(ext) == canonical:
+                continue
+            out.append(ext)
+        return out
+
+    if category == "audio" and _HAS_FFMPEG:
+        return sorted(e for e in _AUDIO_RW if e != src)
+
+    if category == "video" and _HAS_FFMPEG:
+        return sorted(e for e in _VIDEO_RW if e != src)
+
+    if category == "documents" and _HAS_PANDOC:
+        # Same-target and extension aliases that resolve to the same pandoc
+        # format (md/markdown, tex/latex, htm/html) are dropped as no-ops.
+        src_fmt = _PANDOC_FORMAT.get(src, src)
+        out = []
+        for ext in sorted(_DOC_WRITE):
+            if _PANDOC_FORMAT.get(ext, ext) == src_fmt:
+                continue
+            out.append(ext)
+        if _PDF_ENGINE:
+            out.append("pdf")
+        return sorted(out)
+
+    return []
 
 
 def plan(source: Path, target_ext: str) -> ConversionPlan:
@@ -272,16 +455,66 @@ def plan(source: Path, target_ext: str) -> ConversionPlan:
 
     if src_ext not in readable_extensions():
         raise ValueError(f"Unsupported input format: .{src_ext}")
-    if tgt_ext not in target_extensions():
-        raise ValueError(f"Unsupported output format: .{tgt_ext}")
 
-    reader = "mupdf" if src_ext in _MUPDF_READ_ONLY else "pillow"
-    return ConversionPlan(
-        source=source,
-        target_ext=tgt_ext,
-        pil_format=_format_for(tgt_ext),
-        reader=reader,
-    )
+    category = category_for(src_ext)
+
+    # -- images / vector: in-process Pillow or MuPDF -----------------------
+    if category in ("images", "vector"):
+        if tgt_ext not in _image_targets():
+            raise ValueError(f"Unsupported output format: .{tgt_ext}")
+        reader = "mupdf" if src_ext in _MUPDF_READ_ONLY else "pillow"
+        return ConversionPlan(
+            source=source,
+            target_ext=tgt_ext,
+            engine=reader,
+            pil_format=_format_for(tgt_ext),
+            reader=reader,
+        )
+
+    # -- audio / video: ffmpeg subprocess ----------------------------------
+    if category in ("audio", "video"):
+        if not _HAS_FFMPEG:
+            raise ValueError("ffmpeg engine is unavailable")
+        table = _AUDIO_RW if category == "audio" else _VIDEO_RW
+        if tgt_ext not in table:
+            raise ValueError(f"Unsupported {category} output format: .{tgt_ext}")
+        return ConversionPlan(
+            source=source,
+            target_ext=tgt_ext,
+            engine="ffmpeg",
+            codec=table[tgt_ext],
+        )
+
+    # -- documents: pandoc subprocess --------------------------------------
+    if category == "documents":
+        if not _HAS_PANDOC:
+            raise ValueError("pandoc engine is unavailable")
+        if tgt_ext == "pdf":
+            if not _PDF_ENGINE:
+                raise ValueError(
+                    "PDF output needs a PDF engine (e.g. Typst, wkhtmltopdf, or a "
+                    "LaTeX install). None was found on PATH, so PDF is unavailable. "
+                    "Install one and restart, or choose a different target."
+                )
+            return ConversionPlan(
+                source=source,
+                target_ext="pdf",
+                engine="pandoc",
+                pandoc_from=_PANDOC_FORMAT.get(src_ext, src_ext),
+                pandoc_to="pdf",
+                pdf_engine=_PDF_ENGINE,
+            )
+        if tgt_ext not in _DOC_WRITE:
+            raise ValueError(f"Unsupported document output format: .{tgt_ext}")
+        return ConversionPlan(
+            source=source,
+            target_ext=tgt_ext,
+            engine="pandoc",
+            pandoc_from=_PANDOC_FORMAT.get(src_ext, src_ext),
+            pandoc_to=_PANDOC_FORMAT.get(tgt_ext, tgt_ext),
+        )
+
+    raise ValueError(f"No engine for category: {category}")
 
 
 def needs_flattening(pil_format: str) -> bool:

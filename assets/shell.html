@@ -33,14 +33,14 @@
   <section class="hc-work" id="hc-work">
 
     <header class="hc-topbar">
-      <button class="hv-button hc-btn-sm" id="hc-back" aria-label="Back to conversion types">
+      <button class="action-button hc-btn-sm" id="hc-back" aria-label="Back to conversion types">
         &larr; BACK
       </button>
       <span class="hc-work-mode" id="hc-work-mode"></span>
       <span class="hc-topbar-spacer"></span>
-      <button class="hv-button hc-btn-sm" id="hc-drawer-toggle"
+      <button class="action-button hc-btn-sm" id="hc-drawer-toggle"
               aria-expanded="false" aria-controls="hc-drawer">
-        QUEUE <span class="hv-chip hv-chip-outlined-muted" id="hc-queue-count">0</span>
+        QUEUE <span class="status-chip status-chip-outlined-muted" id="hc-queue-count">0</span>
       </button>
     </header>
 
@@ -53,13 +53,13 @@
       <span class="hc-drop-formats" id="hc-accepted"></span>
     </div>
 
-    <!-- Queue drawer — composes .hv-panel-drawer geometry, driven non-modally
+    <!-- Queue drawer — composes .side-drawer geometry, driven non-modally
          so files can still be dropped while it is open. -->
-    <aside class="hv-panel-drawer hc-drawer" id="hc-drawer" aria-label="Conversion queue">
+    <aside class="side-drawer hc-drawer" id="hc-drawer" aria-label="Conversion queue">
       <div class="hc-drawer-head">
         <span class="hc-drawer-title">QUEUE</span>
         <span class="hc-bar-summary" id="hc-summary"></span>
-        <button class="hv-button hc-btn-sm" id="hc-drawer-close" aria-label="Close queue">
+        <button class="action-button hc-btn-sm" id="hc-drawer-close" aria-label="Close queue">
           &rarr;
         </button>
       </div>
@@ -73,9 +73,9 @@
           <span class="hc-dest-path" id="hc-outdir">No destination chosen</span>
         </div>
         <div class="hc-drawer-actions">
-          <button class="hv-button hc-btn-sm" id="hc-pick-outdir">CHANGE</button>
-          <button class="hv-button hc-btn-sm" id="hc-clear" disabled>CLEAR DONE</button>
-          <button class="hv-button hv-button-primary hc-btn-sm" id="hc-start" disabled>
+          <button class="action-button hc-btn-sm" id="hc-pick-outdir">CHANGE</button>
+          <button class="action-button hc-btn-sm" id="hc-clear" disabled>CLEAR DONE</button>
+          <button class="action-button action-button-primary hc-btn-sm" id="hc-start" disabled>
             CONVERT
           </button>
         </div>
