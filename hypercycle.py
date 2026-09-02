@@ -143,6 +143,9 @@ def _read_theme() -> dict:
     try:
         if PREFERENCES.exists():
             prefs = json.loads(PREFERENCES.read_text(encoding="utf-8"))
+            # Light mode is an ecosystem-wide accessibility toggle, applied as the
+            # a11y-bw-theme class rather than through the accent variables.
+            theme["light"] = str(prefs.get("hypervisor-light-mode", "0")) == "1"
             accent = prefs.get("hypervisor-accent")
             if accent:
                 theme["accent"] = accent
@@ -190,7 +193,9 @@ def _read_theme() -> dict:
     except Exception as exc:
         logger.warning("theme defaults read failed: %s", exc)
 
-    return {k: v for k, v in theme.items() if v}
+    # Drop empty strings and None, but keep the light-mode boolean even when
+    # False — turning light mode off has to propagate as much as turning it on.
+    return {k: v for k, v in theme.items() if v or isinstance(v, bool)}
 
 
 def _brand_svg_inner() -> str:
@@ -284,8 +289,27 @@ class Api:
 
     def get_theme(self):
         """Re-read the palette so a change made in Hypervisor can be picked up
-        without restarting. Called by the frontend when the window regains focus."""
+        without restarting."""
         return _read_theme()
+
+    def push_theme(self):
+        """Read the palette and push it to the frontend directly.
+
+        pywebview exposes no window-focus event, so the JS focus listener is not
+        guaranteed to fire inside the WebView2 host. This gives Python a reliable
+        path to drive a refresh — from the `restored` window event and a light
+        periodic poll — so a palette or light-mode change made in Hypervisor
+        lands without a restart.
+        """
+        if not self._window:
+            return
+        try:
+            payload = json.dumps(_read_theme())
+            self._window.evaluate_js(
+                f"window.hcApplyTheme && window.hcApplyTheme({payload})"
+            )
+        except Exception:
+            logger.exception("failed to push theme")
 
     def set_group_target(self, category, target_ext):
         """Change the target format for one category and retarget its queued jobs."""
@@ -401,8 +425,27 @@ def on_loaded(window, api):
         api.bind(window)
         time.sleep(0.5)
         _apply_window_chrome("Hypercycle", str(ICON_FILE))
+        _poll_theme(window, api)
 
     threading.Thread(target=_init, daemon=True).start()
+
+
+def _poll_theme(window, api):
+    """Push the palette to the frontend on a slow loop.
+
+    Palette and light-mode changes are made in a different app (Hypervisor).
+    pywebview offers no focus event, so rather than depend on the JS focus
+    listener firing inside WebView2, Python re-pushes the current theme every few
+    seconds. The read is a small JSON file, so the cost is negligible, and only a
+    genuine change repaints anything on the JS side.
+    """
+    while True:
+        time.sleep(3)
+        try:
+            api.push_theme()
+        except Exception:
+            logger.exception("theme poll failed")
+            return
 
 
 def main():
@@ -419,6 +462,9 @@ def main():
     )
     api.bind(window)
     window.events.loaded += lambda: on_loaded(window, api)
+    # Restoring from minimized can drop injected inline styles in some WebView2
+    # states; re-push the theme so the palette survives.
+    window.events.restored += lambda: api.push_theme()
 
     caps = engines.capabilities()
     for cap in caps:

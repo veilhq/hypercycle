@@ -100,14 +100,37 @@
   }
 
   // --- Theme ---------------------------------------------------------------
-  // The palette is owned by Hypervisor's preferences; Hyperkit's token file
-  // carries fallback values only.
+  // The palette and light-mode flag are owned by Hypervisor's preferences;
+  // Hyperkit's token file carries fallback values only. Python re-pushes the
+  // theme on a poll (see push_theme), so this only repaints on an actual change.
+
+  var lastThemeKey = null;
 
   function applyTheme(theme) {
     if (!theme) return;
-    var root = document.documentElement;
-    var accent = theme.accent;
 
+    // Skip redundant repaints — the poll fires every few seconds.
+    var key = JSON.stringify(theme);
+    if (key === lastThemeKey) return;
+    lastThemeKey = key;
+
+    var root = document.documentElement;
+
+    // Light mode is the ecosystem accessibility toggle. It repaints the neutrals
+    // and the accent through the a11y-bw-theme class. Inline styles would beat
+    // that class, so while light mode is on we must NOT set the accent variables
+    // inline — the class owns them. Clear any we set on a previous pass.
+    var light = !!theme.light;
+    root.classList.toggle("a11y-bw-theme", light);
+
+    var accentProps = ["--accent", "--accent-border", "--accent-glow",
+                       "--warm", "--cool", "--comp"];
+    if (light) {
+      accentProps.forEach(function (p) { root.style.removeProperty(p); });
+      return;
+    }
+
+    var accent = theme.accent;
     if (accent) {
       root.style.setProperty("--accent", accent);
       // Alpha variants are hex-suffixed to match how the sibling apps derive
@@ -124,6 +147,10 @@
       if (semantics[key]) root.style.setProperty("--" + key, semantics[key]);
     });
   }
+
+  // Python drives theme refreshes directly through this, since pywebview has no
+  // window-focus event to hook.
+  window.hcApplyTheme = applyTheme;
 
   // --- Route screen --------------------------------------------------------
 
@@ -325,7 +352,7 @@
 
       rows.forEach(function (job) {
         var row = document.createElement("div");
-        row.className = "hc-job";
+        row.className = "hc-job hk-card";
 
         row.appendChild(stateCell(job));
 
@@ -339,6 +366,27 @@
         size.className = "hc-job-size";
         size.textContent = job.size || "";
         row.appendChild(size);
+
+        // Cancel is available while a job is still pending or mid-conversion.
+        // A pending job is dropped before it starts; an in-flight one finishes
+        // its current file (in-process conversions are quick) then stops.
+        if (job.status === "pending" || job.status === "converting") {
+          var cancel = document.createElement("button");
+          cancel.className = "hv-button hv-button-danger hc-job-cancel";
+          cancel.textContent = "\u00d7";
+          cancel.setAttribute("aria-label", "Cancel " + job.name);
+          cancel.setAttribute("data-tooltip", "Cancel");
+          cancel.addEventListener("click", function () {
+            cancel.disabled = true;
+            api().cancel_job(job.job_id).then(refreshQueue);
+          });
+          row.appendChild(cancel);
+        } else {
+          // Keep the grid column aligned across rows regardless of state.
+          var spacerCell = document.createElement("span");
+          spacerCell.className = "hc-job-cancel-slot";
+          row.appendChild(spacerCell);
+        }
 
         row.appendChild(pairCell(job, job.target_ext || target));
 

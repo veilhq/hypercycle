@@ -179,7 +179,9 @@ body {
               border-color var(--motion-fast) var(--ease);
 }
 
-.hc-drop:hover,
+/* No hover state. The surface is edge-to-edge, so a hover response would be
+   active almost permanently and carry no information. Drag-over and keyboard
+   focus are the only states that mean anything here. */
 .hc-drop:focus-visible {
   background: var(--accent-glow);
   outline: none;
@@ -201,7 +203,6 @@ body {
 
 .hc-drop-mark svg { width: 100%; height: 100%; }
 
-.hc-drop:hover .hc-drop-mark,
 .hc-drop.hc-dragover .hc-drop-mark {
   color: var(--accent);
   transform: scale(1.04);
@@ -295,7 +296,9 @@ body {
 
 /* --- Groups --- */
 /* One group per category, each owning its own target format, so a mixed batch
-   stays coherent instead of sharing a target that cannot apply to all of it. */
+   stays coherent instead of sharing a target that cannot apply to all of it.
+   No per-group rail — the group is just a labelled header over a stack of row
+   cards. Active state moves onto the label rather than a persistent edge rail. */
 
 .hc-groups {
   flex: 1 1 auto;
@@ -305,28 +308,28 @@ body {
 }
 
 .hc-group {
-  border-left: var(--border-rail) solid var(--border);
-  padding-left: var(--space-3);
   margin-bottom: var(--space-4);
-  transition: border-left-color var(--motion-base) var(--ease);
 }
-
-.hc-group.hc-group-active { border-left-color: var(--accent); }
 
 .hc-group-head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) 0;
+  padding: var(--space-1) var(--space-1) var(--space-2);
   flex-wrap: wrap;
 }
 
 .hc-group-name {
   font-size: var(--fs-micro);
   letter-spacing: 0.12em;
-  color: var(--text-bright);
+  color: var(--text-muted);
   text-transform: uppercase;
+  transition: color var(--motion-base) var(--ease);
 }
+
+/* Active group signals through its label brightening to accent, replacing the
+   old left rail. */
+.hc-group-active .hc-group-name { color: var(--accent); }
 
 .hc-group-spacer { flex: 1 1 auto; }
 
@@ -359,18 +362,18 @@ body {
 }
 
 /* --- Job rows --- */
+/* Each row composes .hk-card for the bordered surface and hover lift; only the
+   internal grid is app-specific. Cards are spaced apart rather than sharing
+   dividers, so a queued batch reads as discrete objects. */
 
 .hc-job {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: var(--space-2);
-  padding: var(--space-1) var(--space-1);
-  border-bottom: var(--border-hair) solid transparent;
-  transition: background var(--motion-fast) var(--ease);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
 }
-
-.hc-job:hover { background: var(--bg-card-hover); }
 
 .hc-job-name {
   overflow: hidden;
@@ -386,6 +389,8 @@ body {
   text-align: right;
 }
 
+/* The pair sits on a second grid line, spanning from the name column so it
+   reads as a sub-line under the filename rather than under the state chip. */
 .hc-job-pair {
   grid-column: 2 / -1;
   display: inline-flex;
@@ -419,6 +424,20 @@ body {
 .hc-chip-failed {
   color: var(--error);
   border-color: var(--error);
+}
+
+/* Per-row cancel — compact, only rendered for pending/converting jobs. The
+   empty slot keeps the grid column aligned for rows without a cancel. */
+.hc-job-cancel {
+  padding: 0 var(--space-1);
+  font-size: var(--fs-caption);
+  line-height: 1;
+  min-height: auto;
+}
+
+.hc-job-cancel-slot {
+  display: inline-block;
+  min-width: var(--space-4);
 }
 
 /* .hv-button is sized for standalone use; these are compact bar variants. */
