@@ -125,6 +125,7 @@ def main() -> int:
 
         failures += _check_media(tmpdir, out_dir)
         failures += _check_documents(tmpdir, out_dir)
+        failures += _check_spreadsheet(tmpdir, out_dir)
 
     print()
     if failures:
@@ -283,6 +284,77 @@ def _check_documents(tmpdir: Path, out_dir: Path) -> int:
 
     if not md.exists():
         print(f"{FAIL}source was removed: {md.name}")
+        failures += 1
+
+    # docx -> pdf specifically: the operator's use case, and it exercises the
+    # two-step bundled-Typst path end to end (pandoc -> .typ -> typst.compile).
+    if engines._PDF_ENGINE:  # noqa: SLF001
+        docx = out_dir / "doc.docx"
+        if docx.exists():
+            jobs, _ = _run_batch(out_dir, [(docx, "pdf")])
+            pj = jobs.get("pdf") if jobs else None
+            pdf_out = out_dir / "doc.pdf"
+            if (pj and pj["status"] == Status.COMPLETE.value
+                    and pdf_out.exists() and pdf_out.read_bytes()[:5] == b"%PDF-"):
+                print(f"{PASS}doc.docx -> .pdf via {engines._PDF_ENGINE}  "  # noqa: SLF001
+                      f"({pdf_out.stat().st_size} bytes, valid PDF)")
+            else:
+                print(f"{FAIL}docx -> .pdf failed: {pj['error'] if pj else 'no job'}")
+                failures += 1
+
+    return failures
+
+
+def _check_spreadsheet(tmpdir: Path, out_dir: Path) -> int:
+    """xlsx -> csv via openpyxl. Skipped (not failed) when openpyxl is absent."""
+    print()
+    print("Spreadsheets (openpyxl)")
+    if not engines._HAS_OPENPYXL:  # noqa: SLF001
+        print(f"{SKIP}openpyxl unavailable — spreadsheet checks skipped")
+        return 0
+
+    import openpyxl
+
+    failures = 0
+
+    xlsx = tmpdir / "book.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["name", "qty"])
+    ws.append(["apple", 3])
+    ws.append(["pear", None])  # gap cell -> "" in the CSV
+    wb.create_sheet("Second").append(["ignored"])  # must not appear
+    wb.save(xlsx)
+
+    jobs, err = _run_batch(out_dir, [(xlsx, "csv")])
+    if jobs is None:
+        print(f"{FAIL}spreadsheet batch did not start: {err}")
+        return 1
+
+    job = jobs.get("csv")
+    csv_out = out_dir / "book.csv"
+    if (job and job["status"] == Status.COMPLETE.value
+            and csv_out.exists() and csv_out.stat().st_size > 0):
+        print(f"{PASS}book.xlsx -> .csv  ({csv_out.stat().st_size} bytes)")
+    else:
+        print(f"{FAIL}xlsx -> csv: {job['status'] if job else 'no job'}: "
+              f"{job['error'] if job else ''}")
+        return failures + 1
+
+    txt = csv_out.read_text(encoding="utf-8")
+    if txt.splitlines()[0].startswith("name,qty"):
+        print(f"{PASS}csv carries the header row")
+    else:
+        print(f"{FAIL}csv missing expected header")
+        failures += 1
+    if "ignored" not in txt:
+        print(f"{PASS}first worksheet only (second sheet excluded)")
+    else:
+        print(f"{FAIL}csv leaked a second worksheet")
+        failures += 1
+
+    if not xlsx.exists():
+        print(f"{FAIL}source was removed: {xlsx.name}")
         failures += 1
 
     return failures

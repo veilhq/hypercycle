@@ -1,4 +1,4 @@
-/* Hypercycle frontend — routing screen, full-surface drop target, queue drawer.
+/* Hypercycle frontend - routing screen, full-surface drop target, queue drawer.
    Talks to the Python bridge exposed on window.pywebview.api. */
 
 (function hypercycle() {
@@ -9,8 +9,6 @@
 
   var el = {};
   var state = {
-    view: "route",
-    mode: null,
     outputDir: null,
     accepted: [],
     modes: [],
@@ -48,23 +46,18 @@
 
   function boot() {
     el.app = byId("hc-app");
-    el.routeMark = byId("hc-route-mark");
-    el.greeting = byId("hc-route-greeting");
-    el.segmented = byId("hc-segmented");
-    el.urlRow = byId("hc-url-row");
+    el.brand = byId("hc-brand");
+    el.optbarActions = byId("hc-optbar-actions");
     el.finder = byId("hc-finder");
     el.finderInput = byId("hc-finder-input");
     el.finderList = byId("hc-finder-list");
     el.caps = byId("hc-caps");
-    el.back = byId("hc-back");
-    el.workMode = byId("hc-work-mode");
     el.drawerToggle = byId("hc-drawer-toggle");
     el.drawerClose = byId("hc-drawer-close");
     el.drawer = byId("hc-drawer");
     el.queueCount = byId("hc-queue-count");
     el.dropzone = byId("hc-dropzone");
     el.dropMark = byId("hc-drop-mark");
-    el.accepted = byId("hc-accepted");
     el.groups = byId("hc-groups");
     el.empty = byId("hc-empty");
     el.summary = byId("hc-summary");
@@ -87,7 +80,7 @@
     attempt = attempt || 0;
     if (api()) { done(); return; }
     if (attempt > 100) {
-      toast("Python bridge unavailable — conversions disabled.", true);
+      toast("Python bridge unavailable - conversions disabled.", true);
       return;
     }
     setTimeout(function () { waitForBridge(done, attempt + 1); }, 50);
@@ -102,10 +95,9 @@
       state.defaults = data.default_targets || {};
       state.brandSvg = data.brand_svg || "";
       applyTheme(data.theme);
-      renderMarks();
+      renderBrand();
       renderCaps(data.capabilities || []);
-      renderSegmented();
-      renderUrlRow();
+      renderOptbarActions();
       buildFormatIndex();
       refreshQueue();
     }).catch(function (err) {
@@ -116,16 +108,16 @@
   // --- Theme ---------------------------------------------------------------
   // The palette and light-mode flag are owned by Hypervisor's preferences;
   // Hyperkit's token file carries fallback values only. Python re-pushes the
-  // theme on a poll (see push_theme), so this only repaints on an actual change.
+  // theme on a poll (see push_theme), so this repaints on a change or a forced push.
 
   var lastThemeKey = null;
 
-  function applyTheme(theme) {
+  function applyTheme(theme, force) {
     if (!theme) return;
 
-    // Skip redundant repaints — the poll fires every few seconds.
+    // Skip redundant repaints unless forced, since the poll fires every few seconds.
     var key = JSON.stringify(theme);
-    if (key === lastThemeKey) return;
+    if (!force && key === lastThemeKey) return;
     lastThemeKey = key;
 
     var root = document.documentElement;
@@ -133,7 +125,7 @@
     // Light mode is the ecosystem accessibility toggle. It repaints the neutrals
     // and the accent through the a11y-bw-theme class. Inline styles would beat
     // that class, so while light mode is on we must NOT set the accent variables
-    // inline — the class owns them. Clear any we set on a previous pass.
+    // inline - the class owns them. Clear any we set on a previous pass.
     var light = !!theme.light;
     root.classList.toggle("a11y-bw-theme", light);
 
@@ -168,9 +160,9 @@
 
   // --- Route screen --------------------------------------------------------
 
-  function renderMarks() {
+  function renderBrand() {
     if (!state.brandSvg) return;
-    if (el.routeMark) el.routeMark.innerHTML = state.brandSvg;
+    if (el.brand) el.brand.innerHTML = state.brandSvg;
     if (el.dropMark) el.dropMark.innerHTML = state.brandSvg;
   }
 
@@ -187,10 +179,10 @@
     el.caps.textContent = missing.length + " engine(s) unavailable";
     el.caps.classList.add("hc-caps-degraded");
     el.caps.setAttribute("data-tooltip", missing.map(function (c) {
-      return c.name + (c.detail ? " — " + c.detail : "");
+      return c.name + (c.detail ? " - " + c.detail : "");
     }).join("\n"));
 
-    // A missing OPTIONAL engine (the PDF engine) is expected and never warns —
+    // A missing OPTIONAL engine (the PDF engine) is expected and never warns -
     // it's surfaced in the caps line above and the disabled nav. Only a missing
     // CORE engine means the install is broken, and that gets the launch modal.
     var missingCore = missing.filter(function (c) { return !c.optional; });
@@ -198,8 +190,8 @@
   }
 
   // --- Dependency modal ----------------------------------------------------
-  // Launch-only, dismissible. Appears when a bundled engine failed to load —
-  // an incomplete install — and points the operator at the reinstall command.
+  // Launch-only, dismissible. Appears when a bundled engine failed to load -
+  // an incomplete install - and points the operator at the reinstall command.
 
   function isDepModalOpen() {
     return el.depOverlay && el.depOverlay.classList.contains("visible");
@@ -273,63 +265,49 @@
         sel.removeAllRanges();
         done();
       } catch (err) {
-        toast("Copy failed — select the command manually.", true);
+        toast("Copy failed - select the command manually.", true);
       }
     }
   }
 
-  // Segmented control — one segment per FILE-based mode, single-select.
-  // The "From URL" mode is intake of a different kind (a link, not a file) and
-  // breaks out onto its own line below; see renderUrlRow. Unavailable modes
-  // render disabled so the strip still shows the shape of the app.
-  function renderSegmented() {
-    el.segmented.innerHTML = "";
-    state.modes.forEach(function (mode) {
-      if (mode.id === "fetch") return; // rendered separately on its own line
-      var seg = document.createElement("button");
-      seg.className = "hc-seg";
-      seg.setAttribute("role", "tab");
-      seg.setAttribute("data-mode", mode.id);
-      seg.disabled = !mode.available;
-      seg.setAttribute("aria-selected", "false");
-      seg.textContent = mode.label;
-
+  // Bottom options bar - non-drop actions only. File conversion needs no button
+  // here: you just drop or browse, and files are auto-categorised. This renders
+  // the "non-drop" modes (currently only "From URL"), disabled until their
+  // engine ships. New non-drop actions appear by adding a mode with no file
+  // extensions on the backend.
+  function renderOptbarActions() {
+    el.optbarActions.innerHTML = "";
+    // A non-drop action is a mode that accepts no file extensions - it is not
+    // something you drop, so it belongs in the bar rather than the drop flow.
+    var actions = state.modes.filter(function (m) {
+      return (m.extensions || []).length === 0;
+    });
+    actions.forEach(function (mode) {
+      var btn = document.createElement("button");
+      btn.className = "action-button hc-btn-sm hc-optbar-btn";
+      btn.setAttribute("data-mode", mode.id);
+      btn.disabled = !mode.available;
+      btn.textContent = mode.label;
       if (mode.available) {
-        seg.addEventListener("click", function () { enterMode(mode); });
+        btn.addEventListener("click", function () { runAction(mode); });
       } else {
-        // Say why it's unavailable rather than leaving a dead segment unexplained.
-        seg.setAttribute("data-tooltip", mode.blurb);
+        btn.setAttribute("data-tooltip", mode.blurb);
       }
-      el.segmented.appendChild(seg);
+      el.optbarActions.appendChild(btn);
     });
   }
 
-  // "From URL" on its own line, full width beneath the segmented control. Enters
-  // the fetch mode when available; disabled with its reason when the engine for
-  // it hasn't shipped yet.
-  function renderUrlRow() {
-    el.urlRow.innerHTML = "";
-    var fetch = state.modes.filter(function (m) { return m.id === "fetch"; })[0];
-    if (!fetch) return;
-
-    var btn = document.createElement("button");
-    btn.className = "hc-url-btn";
-    btn.setAttribute("data-mode", "fetch");
-    btn.disabled = !fetch.available;
-    btn.textContent = fetch.label;
-
-    if (fetch.available) {
-      btn.addEventListener("click", function () { enterMode(fetch); });
-    } else {
-      btn.setAttribute("data-tooltip", fetch.blurb);
-    }
-    el.urlRow.appendChild(btn);
+  // Placeholder for non-drop actions. "From URL" lands here once its engine
+  // ships; until then every such mode is disabled and this is unreachable.
+  function runAction(mode) {
+    toast(mode.label + " isn't available yet.");
   }
 
   // --- Format finder -------------------------------------------------------
-  // A flat, searchable index of every supported INPUT format, each tagged with
-  // the mode it belongs to. Picking one routes into that mode — an active
-  // router, not a reference list.
+  // A flat, searchable index of every supported format, tagged with its
+  // category - a quick reference for "is X supported and what is it". In the
+  // drop-first model there is no mode to route into, so picking a result just
+  // fills the field; the answer is the list itself.
 
   function buildFormatIndex() {
     var seen = {};
@@ -382,7 +360,7 @@
       cat.textContent = f.modeLabel;
       li.appendChild(cat);
 
-      // mousedown, not click — click fires after the input blur that would
+      // mousedown, not click - click fires after the input blur that would
       // otherwise close the list first.
       li.addEventListener("mousedown", function (e) {
         e.preventDefault();
@@ -404,11 +382,12 @@
   }
 
   function chooseFormat(f) {
-    var mode = state.modes.filter(function (m) { return m.id === f.modeId; })[0];
-    if (!mode) return;
+    // Reference-only in the drop-first model: there's no mode to enter, so a
+    // pick just reflects the choice in the field and closes the list. The
+    // useful answer was the filtered list itself.
+    el.finderInput.value = "." + f.ext;
     closeFinder();
-    el.finderInput.value = "";
-    enterMode(mode);
+    el.finderInput.blur();
   }
 
   function closeFinder() {
@@ -417,21 +396,104 @@
     state.finderActive = -1;
   }
 
-  // --- View transitions ----------------------------------------------------
+  // A self-contained searchable target-format picker for a queue group. Options
+  // are already clamped by the backend to formats compatible with the group's
+  // source type, so this only adds search + keyboard selection over that set.
+  // Type to filter, arrows to move, Enter/click to choose; the choice calls
+  // onChange(value).
+  function makeTargetPicker(options, current, onChange, ariaLabel) {
+    var wrap = document.createElement("span");
+    wrap.className = "hc-target-picker";
 
-  function enterMode(mode) {
-    state.mode = mode;
-    state.view = "work";
-    el.app.setAttribute("data-view", "work");
-    el.workMode.textContent = mode.label;
-    el.accepted.textContent = (mode.extensions || []).join("  ").toUpperCase();
-    setDrawer(state.jobs.length > 0);
-  }
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "hc-target-input";
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("spellcheck", "false");
+    input.setAttribute("aria-label", ariaLabel || "target format");
+    input.value = current ? "." + current : "";
 
-  function leaveMode() {
-    state.view = "route";
-    el.app.setAttribute("data-view", "route");
-    setDrawer(false);
+    var list = document.createElement("ul");
+    list.className = "hc-target-list hc-finder-list-up";
+    list.setAttribute("role", "listbox");
+    list.hidden = true;
+
+    var active = -1;
+    var matches = options.slice();
+
+    function render(query) {
+      matches = options.filter(function (o) {
+        return !query || o.indexOf(query) !== -1;
+      });
+      list.innerHTML = "";
+      if (!matches.length) { list.hidden = true; input.setAttribute("aria-expanded", "false"); return; }
+      matches.forEach(function (ext, i) {
+        var li = document.createElement("li");
+        li.className = "hc-target-opt" + (i === active ? " hc-finder-opt-active" : "");
+        li.setAttribute("role", "option");
+        li.setAttribute("aria-selected", i === active ? "true" : "false");
+        li.textContent = "." + ext;
+        // mousedown, not click - fires before the input blur that closes the list.
+        li.addEventListener("mousedown", function (e) { e.preventDefault(); choose(ext); });
+        list.appendChild(li);
+      });
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+    }
+
+    function choose(ext) {
+      input.value = "." + ext;
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      input.blur();
+      if (ext !== current) onChange(ext);
+    }
+
+    function move(delta) {
+      if (!matches.length) return;
+      active = (active + delta + matches.length) % matches.length;
+      render(input.value.trim().toLowerCase().replace(/^\./, ""));
+    }
+
+    input.addEventListener("focus", function () {
+      // Show the whole compatible set on focus; select the text so a keystroke
+      // starts a fresh filter rather than appending to ".pdf".
+      active = -1;
+      input.select();
+      render("");
+    });
+    input.addEventListener("input", function () {
+      active = -1;
+      render(input.value.trim().toLowerCase().replace(/^\./, ""));
+    });
+    input.addEventListener("keydown", function (e) {
+      if (list.hidden) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        var pick = active >= 0 ? matches[active] : matches[0];
+        if (pick) choose(pick);
+      } else if (e.key === "Escape") {
+        list.hidden = true;
+        input.setAttribute("aria-expanded", "false");
+      }
+    });
+    input.addEventListener("blur", function () {
+      // Restore the current value if the field was left mid-edit, then close.
+      setTimeout(function () {
+        input.value = current ? "." + current : "";
+        list.hidden = true;
+        input.setAttribute("aria-expanded", "false");
+      }, 120);
+    });
+
+    wrap.appendChild(input);
+    wrap.appendChild(list);
+    return wrap;
   }
 
   function setDrawer(open) {
@@ -534,22 +596,14 @@
       var key = document.createElement("span");
       key.className = "hc-key";
       key.textContent = "to";
-      var sel = document.createElement("select");
-      sel.className = "hc-target";
-      sel.setAttribute("aria-label", meta.label + " target format");
-      (meta.targets || []).forEach(function (ext) {
-        var opt = document.createElement("option");
-        opt.value = ext;
-        opt.textContent = "." + ext;
-        if (ext === target) opt.selected = true;
-        sel.appendChild(opt);
-      });
-      sel.addEventListener("change", function () {
-        state.groupTargets[cat] = sel.value;
-        api().set_group_target(cat, sel.value).then(refreshQueue);
-      });
+      // Searchable target picker, clamped to formats compatible with this
+      // category (meta.targets is already the compatible set from the backend).
+      var picker = makeTargetPicker(meta.targets || [], target, function (val) {
+        state.groupTargets[cat] = val;
+        api().set_group_target(cat, val).then(refreshQueue);
+      }, meta.label + " target format");
       field.appendChild(key);
-      field.appendChild(sel);
+      field.appendChild(picker);
 
       head.appendChild(name);
       head.appendChild(count);
@@ -660,7 +714,6 @@
   // --- Events --------------------------------------------------------------
 
   function wireEvents() {
-    el.back.addEventListener("click", leaveMode);
     el.drawerToggle.addEventListener("click", function () { setDrawer(!state.drawerOpen); });
     el.drawerClose.addEventListener("click", function () { setDrawer(false); });
 
@@ -695,7 +748,7 @@
     el.depCopy.addEventListener("click", copyDepCommand);
     el.depDismiss.addEventListener("click", closeDepModal);
 
-    // Format finder — open on focus, filter on type, keyboard-navigable.
+    // Format finder - open on focus, filter on type, keyboard-navigable.
     el.finderInput.addEventListener("focus", openFinder);
     el.finderInput.addEventListener("input", function () {
       state.finderActive = -1;
@@ -716,13 +769,12 @@
       setTimeout(closeFinder, 100);
     });
 
-    // Escape closes the dependency modal first, then the drawer, then backs out.
+    // Escape closes the dependency modal first, then the finder, then the drawer.
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape") return;
       if (isDepModalOpen()) closeDepModal();
       else if (!el.finderList.hidden) { closeFinder(); el.finderInput.blur(); }
       else if (state.drawerOpen) setDrawer(false);
-      else if (state.view === "work") leaveMode();
     });
 
     // Palette changes are made in Hypervisor, so re-read on focus.
@@ -733,30 +785,48 @@
   }
 
   function handleDrop(e) {
-    var files = (e.dataTransfer && e.dataTransfer.files) || [];
-    var paths = [];
-    for (var i = 0; i < files.length; i++) {
-      // pywebview exposes the OS path here; browsers without it yield "".
-      var p = files[i].path || files[i].name;
-      if (p) paths.push(p);
-    }
-    if (!paths.length) {
-      toast("Could not read dropped paths — use browse instead.", true);
-      return;
-    }
-    enqueue(paths);
+    // Path extraction and enqueue happen in Python: the dropped file's real OS
+    // path is exposed only to the Python drop handler as `pywebviewFullPath`,
+    // never to JS. This handler just clears the drag-over visual; Python calls
+    // back through window.hcDropResult with the outcome.
+    e.preventDefault();
+    el.dropzone.classList.remove("hc-dragover");
   }
 
+  // Python pushes the drop outcome here after it has resolved the OS paths and
+  // enqueued them (see Api.on_drop). Mirrors what enqueue() does for browse.
+  window.hcDropResult = function (res) {
+    res = res || {};
+    if (res.no_path) {
+      toast("Could not read dropped file paths - use browse instead.", true);
+    }
+    var rej = res.rejected || [];
+    if (rej.length) {
+      var reasons = {};
+      rej.forEach(function (r) { reasons[r.reason || "skipped"] = true; });
+      toast(rej.length + " file(s) skipped: " + Object.keys(reasons).join(", ") + ".", true);
+    }
+    refreshQueue();
+    if ((res.added || []).length) setDrawer(true);
+  };
+
   function browseFiles() {
-    api().pick_files(state.mode ? state.mode.id : null).then(function (paths) {
+    // No mode gate - the dialog offers every supported input format.
+    api().pick_files(null).then(function (paths) {
       if (paths && paths.length) enqueue(paths);
     });
   }
 
   function enqueue(paths) {
     api().add_jobs(paths).then(function (res) {
-      if (res.rejected && res.rejected.length) {
-        toast(res.rejected.length + " file(s) skipped: unsupported input.", true);
+      var rej = res.rejected || [];
+      if (rej.length) {
+        // Report the actual reason rather than assuming "unsupported input" -
+        // a path we couldn't read as a file is a different problem than a format
+        // we don't handle, and the operator needs to know which.
+        var reasons = {};
+        rej.forEach(function (r) { reasons[r.reason || "skipped"] = true; });
+        toast(rej.length + " file(s) skipped: " + Object.keys(reasons).join(", ") + ".", true);
       }
       // Dropping work is the cue to reveal the queue.
       refreshQueue();

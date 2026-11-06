@@ -34,6 +34,32 @@ class _JobCancelled(Exception):
     Distinguishes an operator cancel from a genuine engine failure."""
 
 
+# Style overrides injected into pandoc's standalone Typst output before
+# compiling, applied AFTER the template's own rules so they win. pandoc's
+# template sets tables to `stroke: none` (no gridlines) and leaves headings at
+# Typst's subtle defaults; these give tables real gridlines with a shaded, bold
+# header row, and give headings a clear size hierarchy with breathing room.
+_TYPST_STYLE_PREAMBLE = """
+// --- Hypercycle document styling ---
+#set table(
+  stroke: 0.5pt + rgb("#c8c8c8"),
+  inset: 7pt,
+  fill: (_, row) => if row == 0 { rgb("#eeeeee") },
+)
+// Table cells read better left-aligned and unjustified — the template's
+// centered, justified cells hyphenate and look ragged in narrow columns.
+#show table.cell: set align(left + top)
+#show table.cell: set par(justify: false)
+#show table.cell.where(y: 0): strong
+
+#show heading.where(level: 1): set text(size: 1.6em, weight: "bold")
+#show heading.where(level: 2): set text(size: 1.3em, weight: "bold")
+#show heading.where(level: 3): set text(size: 1.1em, weight: "bold")
+#show heading: it => block(above: 1.2em, below: 0.6em, it)
+// --- end Hypercycle styling ---
+"""
+
+
 class Status(str, Enum):
     PENDING = "pending"
     CONVERTING = "converting"
@@ -239,6 +265,8 @@ class ConvertManager:
             return self._convert_ffmpeg(job, plan, out_path)
         if plan.engine == "pandoc":
             return self._convert_pandoc(job, plan, out_path)
+        if plan.engine == "openpyxl":
+            return self._convert_xlsx(job, plan, out_path)
         raise ValueError(f"Unknown engine: {plan.engine}")
 
     def _convert_image(self, job: Job, plan, out_path: Path) -> Path:
@@ -356,13 +384,23 @@ class ConvertManager:
         """Convert a document via the bundled pandoc.
 
         pandoc runs quickly enough to report as an indeterminate in-progress
-        state rather than a percentage. PDF output additionally needs a PDF
-        engine, passed through when the plan resolved one.
+        state rather than a percentage.
+
+        PDF is the one target pandoc cannot finish alone. The bundled Typst
+        engine has no PATH executable for pandoc's --pdf-engine to call, so the
+        portable path is two steps: pandoc emits Typst markup, then the Typst
+        Python API compiles that markup to PDF in-process. A PATH engine, when
+        one is present instead, is passed straight through to pandoc.
         """
         import pypandoc
 
+        # PDF via the bundled Typst engine — the two-step in-process path.
+        if plan.pandoc_to == "pdf" and plan.pdf_engine == engines.PDF_ENGINE_TYPST_PY:
+            return self._convert_pdf_via_typst(job, plan, out_path)
+
         extra_args: list[str] = []
         if plan.pandoc_to == "pdf" and plan.pdf_engine:
+            # A real PDF engine on PATH (LaTeX, wkhtmltopdf, …) drives pandoc directly.
             extra_args.append(f"--pdf-engine={plan.pdf_engine}")
 
         pypandoc.convert_file(
@@ -372,6 +410,124 @@ class ConvertManager:
             outputfile=str(out_path),
             extra_args=extra_args,
         )
+        return out_path
+
+    def _convert_pdf_via_typst(self, job: Job, plan, out_path: Path) -> Path:
+        """document -> Typst markup (pandoc) -> PDF (typst.compile), in-process.
+
+        Both steps are wheel-only with nothing on PATH, so PDF output stays as
+        portable as every other conversion. The intermediate .typ and any
+        extracted media are written under a temp dir and removed afterward.
+
+        Fidelity note: this path preserves document *structure* (headings, lists,
+        tables, emphasis, images) but not the source's exact visual presentation
+        — fonts, spacing, colours, and page layout are normalised by pandoc and
+        re-rendered with Typst's template. Faithful visual reproduction would
+        need a Word-format renderer (LibreOffice/Word), which is not wheel-only.
+        Two options lift the result well above pandoc's bare fragment:
+          --standalone     emits a complete Typst doc with pandoc's template,
+                           including real table styling and figure handling.
+          --extract-media  pulls embedded images out of the .docx and references
+                           them, so pictures survive instead of vanishing.
+        A style preamble is then injected to override the template's borderless
+        tables and subtle headings — see `_TYPST_STYLE_PREAMBLE`.
+        """
+        import re
+        import tempfile
+
+        import pypandoc
+        import typst
+
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            typ_path = td_path / (job.source.stem + ".typ")
+            media_dir = td_path / "media"
+            pypandoc.convert_file(
+                str(job.source),
+                to="typst",
+                format=plan.pandoc_from,
+                outputfile=str(typ_path),
+                # pandoc rejects backslashes in --extract-media on Windows, so
+                # hand it a POSIX-style path; it resolves fine either way.
+                extra_args=["--standalone", f"--extract-media={media_dir.as_posix()}"],
+            )
+
+            # pandoc writes extracted-image references as ABSOLUTE paths. Typst
+            # sandboxes file access to a root and refuses an absolute component
+            # (e.g. a `C:` drive), so rewrite each image("<abs>") to a path
+            # relative to the temp dir and compile with root=temp dir. Images
+            # then load from inside the sandbox.
+            text = typ_path.read_text(encoding="utf-8")
+            root_posix = td_path.as_posix()
+
+            def _relativise(m: "re.Match") -> str:
+                ref = m.group(1)
+                rp = ref.replace("\\", "/")
+                if rp.startswith(root_posix):
+                    rp = rp[len(root_posix):].lstrip("/")
+                return f'image("{rp}"'
+
+            text = re.sub(r'image\("([^"]+)"', _relativise, text)
+
+            # Inject the style preamble so it overrides pandoc's template. It has
+            # to land AFTER the template's own #set/#show block but BEFORE any
+            # content — Typst show/set rules only affect what follows them.
+            # pandoc closes its preamble with `#show: doc => conf( ... )`, so
+            # insert right after that call. This is the reliable anchor: keying
+            # on the first `= ` heading fails on documents whose headings pandoc
+            # emitted as bold text rather than Typst headings (e.g. numbered
+            # "1. Overview" sections), which would push the preamble past the
+            # tables and silently no-op it.
+            conf_m = re.search(r"#show:\s*doc\s*=>\s*conf\(", text)
+            if conf_m:
+                # Find the matching close paren of the conf(...) call.
+                depth = 0
+                i = text.index("(", conf_m.start())
+                end = i
+                for end in range(i, len(text)):
+                    if text[end] == "(":
+                        depth += 1
+                    elif text[end] == ")":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                insert_at = text.index("\n", end) + 1 if "\n" in text[end:] else len(text)
+                text = text[:insert_at] + _TYPST_STYLE_PREAMBLE + "\n" + text[insert_at:]
+            else:
+                # No pandoc template (unlikely with --standalone): fall back to
+                # the first heading, else prepend so it still precedes content.
+                heading_m = re.search(r"(?m)^=+ ", text)
+                cut = heading_m.start() if heading_m else 0
+                text = text[:cut] + _TYPST_STYLE_PREAMBLE + "\n" + text[cut:]
+
+            typ_path.write_text(text, encoding="utf-8")
+
+            typst.compile(str(typ_path), output=str(out_path), root=str(td_path))
+        return out_path
+
+    def _convert_xlsx(self, job: Job, plan, out_path: Path) -> Path:
+        """xlsx -> csv via openpyxl, in-process.
+
+        The FIRST worksheet only is exported — a workbook maps to one CSV, which
+        is the common "give me this as CSV" case. read_only keeps memory flat on
+        large books; data_only takes the last-computed value of a formula cell
+        rather than the formula text.
+        """
+        import csv
+
+        import openpyxl
+
+        wb = openpyxl.load_workbook(str(job.source), read_only=True, data_only=True)
+        try:
+            ws = wb[wb.sheetnames[0]]
+            # newline="" so the csv module controls line endings on every platform.
+            with open(out_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                for row in ws.iter_rows(values_only=True):
+                    # Normalise empty cells (None) to "" so rows stay rectangular.
+                    writer.writerow(["" if v is None else v for v in row])
+        finally:
+            wb.close()
         return out_path
 
     @staticmethod

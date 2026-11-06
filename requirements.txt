@@ -27,3 +27,12 @@ imageio-ffmpeg>=0.6.0
 # the plain pypandoc package does not. PDF output additionally needs a separate
 # PDF engine that pandoc does not bundle, so PDF targets are gated at runtime.
 pypandoc_binary>=1.13
+
+# Spreadsheet reading for xlsx->csv. Pure-Python wheel, no system dependency.
+openpyxl>=3.1.0
+
+# PDF rendering engine for document->PDF. The wheel bundles the Typst compiler
+# and exposes an in-process compile() — no `typst` executable on PATH, no LaTeX.
+# pandoc emits Typst markup, then typst.compile() renders the PDF, so the whole
+# document->PDF path stays wheel-only and portable.
+typst>=0.15.0

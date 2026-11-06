@@ -2,3 +2,4 @@
 generated_html.py
 __pycache__/
 *.pyc
+*.lnk

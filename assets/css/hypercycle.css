@@ -1,4 +1,4 @@
-/* Hypercycle — app-local styles.
+/* Hypercycle - app-local styles.
 
    Everything that exists as a Hyperkit primitive is composed from Hyperkit
    rather than redefined here: .action-button, .status-chip, .side-drawer. What
@@ -6,18 +6,19 @@
    colours, sizes, or durations. */
 
 html, body {
+  font-size: 14px; /* design-lint: allow - the one root size every app shares; rem scales from it */
   height: 100%;
   margin: 0;
   overflow: hidden;
 }
 
-/* Hyperkit sets no base font-family — each app establishes it, the same way
+/* Hyperkit sets no base font-family - each app establishes it, the same way
    Hyperline does in its own layout CSS. */
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-mono);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   cursor: default;
@@ -29,139 +30,12 @@ body {
   overflow: hidden;
 }
 
-/* Two top-level views, swapped by the data-view attribute on .hc-app. */
-.hc-route,
-.hc-work { display: none; height: 100%; }
-
-.hc-app[data-view="route"] .hc-route { display: flex; }
-.hc-app[data-view="work"]  .hc-work  { display: flex; }
-
-/* ============================================================
-   ROUTE — icon, greeting, and one button per conversion mode
-   ============================================================ */
-
-.hc-route {
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-5);
-  padding: var(--space-6);
-  text-align: center;
-  animation: fadeSlideIn var(--motion-slow) var(--ease) both;
-}
-
-.hc-route-mark {
-  display: inline-flex;
-  width: 72px;
-  height: 78px;
-  color: var(--accent);
-}
-
-.hc-route-mark svg { width: 100%; height: 100%; }
-
-.hc-route-greeting {
-  margin: 0;
-  font-size: var(--fs-hero);
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--text-bright);
-}
-
-/* --- Segmented control ---
-   The primary category selector: one horizontal bar split into equal segments,
-   single-select. Composes design tokens; the strip and its segments carry no
-   per-content width so every segment is the same size. */
-
-.hc-segmented {
+/* Single view: a column of topbar, drop surface, and the bottom options bar.
+   The drop surface takes all the space between the two bars. */
+.hc-main {
   display: flex;
-  width: 100%;
-  max-width: 52ch;
-  border: var(--border-hair) solid var(--border-strong);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-card);
-}
-
-.hc-seg {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: var(--space-3) var(--space-2);
-  background: transparent;
-  border: none;
-  /* Hairline divider between segments; the strip's outer border closes the ends. */
-  border-right: var(--border-hair) solid var(--border);
-  color: var(--text-dim);
-  font: inherit;
-  font-size: var(--fs-caption);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--ease),
-              color var(--motion-fast) var(--ease);
-}
-
-.hc-seg:last-child { border-right: none; }
-
-.hc-seg:hover:not(:disabled),
-.hc-seg:focus-visible:not(:disabled) {
-  background: var(--bg-card-hover);
-  color: var(--accent);
-  outline: none;
-}
-
-.hc-seg[aria-selected="true"] {
-  background: var(--accent);
-  color: var(--bg);
-}
-
-.hc-seg:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-/* --- From URL row ---
-   The url intake sits on its own full-width line beneath the segmented control,
-   visually distinct from the file-category segments because it takes a link
-   rather than a local file. */
-
-.hc-url-row {
-  width: 100%;
-  max-width: 52ch;
-}
-
-.hc-url-btn {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-card);
-  border: var(--border-hair) dashed var(--border-strong);
-  border-radius: var(--radius);
-  color: var(--text-dim);
-  font: inherit;
-  font-size: var(--fs-caption);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease),
-              background var(--motion-fast) var(--ease),
-              color var(--motion-fast) var(--ease);
-}
-
-.hc-url-btn:hover:not(:disabled),
-.hc-url-btn:focus-visible:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--bg-card-hover);
-  color: var(--accent);
-  outline: none;
-}
-
-.hc-url-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* --- Format finder ---
@@ -170,23 +44,25 @@ body {
 
 .hc-finder {
   position: relative;
-  width: 100%;
-  max-width: 52ch;
+  /* Sits inside the bottom options bar; a comfortable fixed width rather than
+     spanning the whole bar. */
+  width: min(34ch, 40vw);
+  flex: 0 0 auto;
 }
 
 .hc-finder-input {
   width: 100%;
   padding: var(--space-2) var(--space-3);
-  background: var(--bg-inset, var(--bg));
+  background: var(--bg);
   border: var(--border-hair) solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text);
   font: inherit;
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
 }
 
 .hc-finder-input:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
   outline: none;
 }
 
@@ -196,10 +72,9 @@ body {
 
 .hc-finder-list {
   position: absolute;
-  top: calc(100% + var(--space-1));
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: var(--z-dropdown);
   margin: 0;
   padding: var(--space-1);
   list-style: none;
@@ -209,6 +84,13 @@ body {
   border: var(--border-hair) solid var(--border-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-panel);
+}
+
+/* Default opens downward; -up opens above the input for the bottom bar. */
+.hc-finder-list { top: calc(100% + var(--space-1)); }
+.hc-finder-list-up {
+  top: auto;
+  bottom: calc(100% + var(--space-1));
 }
 
 .hc-finder-opt {
@@ -227,20 +109,20 @@ body {
 }
 
 .hc-finder-ext {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
   color: var(--text);
 }
 
 .hc-finder-cat {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text-dim);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-body);
   text-transform: uppercase;
 }
 
 .hc-route-caps {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.1em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-dim);
   text-transform: uppercase;
 }
@@ -248,13 +130,8 @@ body {
 .hc-route-caps.hc-caps-degraded { color: var(--warning); }
 
 /* ============================================================
-   WORK — full-bleed drop surface plus the queue drawer
+   WORK - full-bleed drop surface plus the queue drawer
    ============================================================ */
-
-.hc-work {
-  flex-direction: column;
-  position: relative;
-}
 
 .hc-topbar {
   display: flex;
@@ -269,11 +146,19 @@ body {
 
 .hc-topbar-spacer { flex: 1 1 auto; }
 
-.hc-work-mode {
-  font-size: var(--fs-caption);
-  letter-spacing: 0.12em;
+.hc-brand {
+  display: inline-flex;
+  width: 22px;
+  height: 24px;
+  color: var(--brand);
+}
+
+.hc-brand svg { width: 100%; height: 100%; }
+
+.hc-wordmark {
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-bright);
-  text-transform: uppercase;
 }
 
 /* The entire remaining surface is the drop target. */
@@ -297,13 +182,13 @@ body {
    active almost permanently and carry no information. Drag-over and keyboard
    focus are the only states that mean anything here. */
 .hc-drop:focus-visible {
-  background: var(--accent-glow);
+  background: var(--focus-wash);
   outline: none;
 }
 
 .hc-drop.hc-dragover {
-  background: var(--accent-glow);
-  border-color: var(--accent);
+  background: var(--selected-wash);
+  border-color: var(--selected);
 }
 
 .hc-drop-mark {
@@ -318,31 +203,54 @@ body {
 .hc-drop-mark svg { width: 100%; height: 100%; }
 
 .hc-drop.hc-dragover .hc-drop-mark {
-  color: var(--accent);
+  color: var(--selected);
   transform: scale(1.04);
 }
 
 .hc-drop-label {
-  font-size: var(--fs-heading);
-  letter-spacing: 0.14em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-bright);
 }
 
 .hc-drop-sub {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
   color: var(--text-muted);
 }
 
-.hc-drop-formats {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-  max-width: 56ch;
-  line-height: 1.6;
+/* ============================================================
+   OPTIONS BAR - persistent bottom bar for non-drop actions and the format
+   finder. File conversion never needs it; it is where everything that is not
+   "drop a file" lives (From URL, the searchable format reference, engine status).
+   ============================================================ */
+
+.hc-optbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: var(--border-hair) solid var(--border);
+  background: var(--bg);
+  flex: 0 0 auto;
+  z-index: var(--z-topbar);
+}
+
+.hc-optbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hc-optbar-spacer { flex: 1 1 auto; }
+
+/* Dashed edge marks a non-drop action as a different kind of intake (a link,
+   not a local file), the same signal the old URL row used. */
+.hc-optbar-btn {
+  border-style: dashed;
 }
 
 /* ============================================================
-   DRAWER — composes .side-drawer for geometry and transition.
+   DRAWER - composes .side-drawer for geometry and transition.
    Driven by .hc-drawer-open rather than .modal-overlay.visible so there is no
    modal backdrop: files remain droppable while the queue is showing.
    ============================================================ */
@@ -365,8 +273,8 @@ body {
 }
 
 .hc-drawer-title {
-  font-size: var(--fs-caption);
-  letter-spacing: 0.12em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-bright);
 }
 
@@ -387,7 +295,7 @@ body {
 }
 
 .hc-dest-path {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -402,8 +310,8 @@ body {
 
 .hc-bar-summary {
   flex: 1 1 auto;
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-label);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -411,7 +319,7 @@ body {
 /* --- Groups --- */
 /* One group per category, each owning its own target format, so a mixed batch
    stays coherent instead of sharing a target that cannot apply to all of it.
-   No per-group rail — the group is just a labelled header over a stack of row
+   No per-group rail - the group is just a labelled header over a stack of row
    cards. Active state moves onto the label rather than a persistent edge rail. */
 
 .hc-groups {
@@ -434,8 +342,8 @@ body {
 }
 
 .hc-group-name {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.12em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-muted);
   text-transform: uppercase;
   transition: color var(--motion-base) var(--ease);
@@ -443,7 +351,7 @@ body {
 
 /* Active group signals through its label brightening to accent, replacing the
    old left rail. */
-.hc-group-active .hc-group-name { color: var(--accent); }
+.hc-group-active .hc-group-name { color: var(--selected); }
 
 .hc-group-spacer { flex: 1 1 auto; }
 
@@ -454,25 +362,68 @@ body {
 }
 
 .hc-key {
-  font-size: var(--fs-micro);
-  letter-spacing: 0.12em;
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-caps);
   color: var(--text-dim);
   text-transform: uppercase;
 }
 
-.hc-target {
-  background: var(--bg);
-  color: var(--accent);
-  font: inherit;
-  font-size: var(--fs-micro);
-  border: var(--border-hair) solid var(--border-strong);
-  border-radius: var(--radius);
-  padding: var(--space-0-1) var(--space-1);
+/* Searchable target-format picker in a group header. The input mimics the old
+   .hc-target select's compact accent look; the list reuses the finder styling
+   and opens upward (group headers sit low in the drawer). */
+.hc-target-picker {
+  position: relative;
+  display: inline-block;
 }
 
-.hc-target:focus-visible {
+.hc-target-input {
+  width: 7ch;
+  background: var(--bg);
+  color: var(--interactive);
+  font: inherit;
+  font-size: var(--fs-mono);
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-1);
+}
+
+.hc-target-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--focus);
+  width: 12ch;
+}
+
+.hc-target-list {
+  position: absolute;
+  right: 0;
+  min-width: 10ch;
+  z-index: var(--z-dropdown);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: var(--border-hair) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-panel);
+}
+
+.hc-target-list.hc-finder-list-up {
+  top: auto;
+  bottom: calc(100% + var(--space-1));
+}
+
+.hc-target-opt {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.hc-target-opt:hover,
+.hc-target-opt.hc-finder-opt-active {
+  background: var(--bg-card-hover);
 }
 
 /* --- Job rows --- */
@@ -493,11 +444,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
 }
 
 .hc-job-size {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -514,23 +465,23 @@ body {
 
 .hc-pair-arrow {
   color: var(--text-dim);
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
 }
 
-/* ASCII cycle frames — the single motion beat, only on the active row. */
+/* ASCII cycle frames - the single motion beat, only on the active row. */
 .hc-cyc {
   display: inline-block;
   min-width: 2ch;
   text-align: center;
-  color: var(--accent);
-  font-size: var(--fs-caption);
+  color: var(--brand);
+  font-size: var(--fs-mono);
 }
 
 .hc-job-error {
   grid-column: 1 / -1;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--error);
-  line-height: 1.5;
+  line-height: var(--lh-body);
   word-break: break-word;
 }
 
@@ -540,12 +491,12 @@ body {
   border-color: var(--error);
 }
 
-/* Per-row cancel — compact, only rendered for pending/converting jobs. The
+/* Per-row cancel - compact, only rendered for pending/converting jobs. The
    empty slot keeps the grid column aligned for rows without a cancel. */
 .hc-job-cancel {
   padding: 0 var(--space-1);
-  font-size: var(--fs-caption);
-  line-height: 1;
+  font-size: var(--fs-mono);
+  line-height: var(--lh-tight);
   min-height: auto;
 }
 
@@ -557,7 +508,7 @@ body {
 /* .action-button is sized for standalone use; these are compact bar variants. */
 .hc-btn-sm {
   padding: var(--space-1) var(--space-2);
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   min-height: auto;
   gap: var(--space-1);
 }
@@ -569,7 +520,7 @@ body {
   justify-content: center;
   margin: 0;
   color: var(--text-dim);
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
 }
 
 .hc-empty.hc-hidden { display: none; }
@@ -589,12 +540,12 @@ body {
 }
 
 .hc-toast {
-  background: var(--bg-elevated);
+  background: var(--bg-raised);
   border: var(--border-hair) solid var(--border-strong);
-  border-left: var(--border-rail) solid var(--accent);
+  border-left: var(--border-rail) solid var(--brand);
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
   color: var(--text);
   max-width: 46ch;
   animation: fadeSlideIn var(--motion-fast) var(--ease) both;
@@ -615,15 +566,15 @@ body {
 }
 
 .hc-dep-title {
-  font-size: var(--fs-body);
+  font-size: var(--fs-mono);
   color: var(--text);
   margin: 0;
 }
 
 .hc-dep-lead {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
   color: var(--text-dim);
-  line-height: 1.6;
+  line-height: var(--lh-prose);
   margin: 0;
 }
 
@@ -639,35 +590,35 @@ body {
 .hc-dep-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--border-rail);
   padding: var(--space-2) var(--space-3);
   border: var(--border-hair) solid var(--border);
-  border-left: 2px solid var(--warning);
+  border-left: var(--border-rail) solid var(--warning);
   border-radius: var(--radius-sm);
-  background: var(--bg-inset, var(--bg));
+  background: var(--bg);
 }
 
 .hc-dep-name {
-  font-size: var(--fs-caption);
+  font-size: var(--fs-mono);
   color: var(--text);
 }
 
 .hc-dep-impact {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--warning);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-body);
 }
 
 .hc-dep-detail {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text-dim);
   word-break: break-word;
 }
 
 .hc-dep-fix-label {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text-dim);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-body);
   margin: 0;
 }
 
@@ -678,12 +629,12 @@ body {
   padding: var(--space-2) var(--space-3);
   border: var(--border-hair) solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-inset, var(--bg));
+  background: var(--bg);
 }
 
 .hc-dep-cmd code {
   flex: 1 1 auto;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-mono);
   color: var(--text);
   user-select: all;
   overflow-x: auto;

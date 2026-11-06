@@ -4,61 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hypercycle</title>
-<!-- Departure Mono is the ecosystem typeface. Hyperkit's tokens.css also carries
-     an @import for it, but a <link> loads in parallel instead of blocking on CSS
-     parse, and matches how HyperField pulls it in. Offline, the stack falls back
-     through JetBrains Mono to the system monospace. -->
-<link rel="preconnect" href="https://db.onlinewebfonts.com">
-<link rel="stylesheet" href="https://db.onlinewebfonts.com/c/4571adf8e6d8270ea61a4f43a3ef31d2?family=Departure+Mono">
 <style>
 {{CSS}}
 </style>
 </head>
 <body>
-<div class="hc-app" id="hc-app" data-view="route">
+<div class="hc-app" id="hc-app">
 
   <!-- ============================================================
-       ROUTE — the screen the app opens on
+       Single view — opens straight on the drop zone for a quick start.
+       No mode picker: files are auto-categorised on drop and grouped in
+       the queue. Non-drop actions live in the bottom options bar.
        ============================================================ -->
-  <section class="hc-route" id="hc-route">
-    <span class="hc-route-mark" id="hc-route-mark"></span>
-    <h1 class="hc-route-greeting" id="hc-route-greeting">What are we converting?</h1>
-
-    <!-- Category selector — one segment per conversion mode, single-select.
-         Unavailable modes render disabled. Selecting a segment enters that mode. -->
-    <div class="hc-segmented" id="hc-segmented" role="tablist"
-         aria-label="Conversion category"></div>
-
-    <!-- Searchable format finder — type to filter every supported input format;
-         picking one jumps into that format's category. An active router, not a
-         reference list. -->
-    <div class="hc-finder" id="hc-finder">
-      <input type="text" class="hc-finder-input" id="hc-finder-input"
-             role="combobox" aria-expanded="false" aria-autocomplete="list"
-             aria-controls="hc-finder-list" autocomplete="off" spellcheck="false"
-             placeholder="Search a format — png, mp3, docx…"
-             aria-label="Search supported formats">
-      <ul class="hc-finder-list" id="hc-finder-list" role="listbox" hidden></ul>
-    </div>
-
-    <!-- From URL breaks out of the segmented control onto its own line — it is a
-         fundamentally different intake (a link, not a local file). Rendered by
-         renderUrlRow so it inherits availability from the fetch mode. -->
-    <div class="hc-url-row" id="hc-url-row"></div>
-
-    <span class="hc-route-caps" id="hc-caps" data-tooltip="Engine availability"></span>
-  </section>
-
-  <!-- ============================================================
-       WORK — the whole surface is the drop target
-       ============================================================ -->
-  <section class="hc-work" id="hc-work">
+  <section class="hc-main" id="hc-main">
 
     <header class="hc-topbar">
-      <button class="action-button hc-btn-sm" id="hc-back" aria-label="Back to conversion types">
-        &larr; BACK
-      </button>
-      <span class="hc-work-mode" id="hc-work-mode"></span>
+      <span class="hc-brand" id="hc-brand" aria-hidden="true"></span>
+      <span class="hc-wordmark">HYPERCYCLE</span>
       <span class="hc-topbar-spacer"></span>
       <button class="action-button hc-btn-sm" id="hc-drawer-toggle"
               aria-expanded="false" aria-controls="hc-drawer">
@@ -66,14 +28,33 @@
       </button>
     </header>
 
-    <!-- Full-bleed drop surface -->
+    <!-- Full-bleed drop surface — accepts every supported format. -->
     <div class="hc-drop" id="hc-dropzone" tabindex="0" role="button"
          aria-label="Drop files here or click to browse">
       <span class="hc-drop-mark" id="hc-drop-mark"></span>
       <span class="hc-drop-label">DROP FILES HERE</span>
       <span class="hc-drop-sub">or click to browse</span>
-      <span class="hc-drop-formats" id="hc-accepted"></span>
     </div>
+
+    <!-- Bottom options bar — persistent. Holds every non-drop action plus the
+         searchable format finder. "From URL" is rendered here (disabled until
+         its engine ships); new non-drop actions slot in alongside it. -->
+    <footer class="hc-optbar" id="hc-optbar">
+      <div class="hc-optbar-actions" id="hc-optbar-actions"></div>
+
+      <div class="hc-finder" id="hc-finder">
+        <input type="text" class="hc-finder-input" id="hc-finder-input"
+               role="combobox" aria-expanded="false" aria-autocomplete="list"
+               aria-controls="hc-finder-list" autocomplete="off" spellcheck="false"
+               placeholder="Search supported formats — png, mp3, docx…"
+               aria-label="Search supported formats">
+        <!-- Opens upward: the bar is pinned to the bottom of the window. -->
+        <ul class="hc-finder-list hc-finder-list-up" id="hc-finder-list" role="listbox" hidden></ul>
+      </div>
+
+      <span class="hc-optbar-spacer"></span>
+      <span class="hc-route-caps" id="hc-caps" data-tooltip="Engine availability"></span>
+    </footer>
 
     <!-- Queue drawer — composes .side-drawer geometry, driven non-modally
          so files can still be dropped while it is open. -->

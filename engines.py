@@ -85,6 +85,31 @@ except Exception as exc:  # pragma: no cover - dependency missing
     pypandoc = None  # type: ignore[assignment]
     _PROBE_ERRORS["pandoc"] = str(exc)
 
+# openpyxl reads spreadsheets for xlsx->csv. Pure-Python wheel, no system
+# dependency, so its presence is simply whether the import succeeds.
+_HAS_OPENPYXL = False
+try:
+    import openpyxl  # noqa: F401
+
+    _HAS_OPENPYXL = True
+except Exception as exc:  # pragma: no cover - dependency missing
+    openpyxl = None  # type: ignore[assignment]
+    _PROBE_ERRORS["openpyxl"] = str(exc)
+
+# Typst is the bundled PDF engine for document->PDF. The wheel ships the Typst
+# compiler and exposes an in-process typst.compile() — no executable on PATH.
+# pandoc cannot drive it directly (its --pdf-engine=typst needs a PATH binary),
+# so the two-step path is pandoc -> Typst markup -> typst.compile() -> PDF. The
+# manager owns that sequence; here we only record that the engine is available.
+_HAS_TYPST = False
+try:
+    import typst  # noqa: F401
+
+    _HAS_TYPST = True
+except Exception as exc:  # pragma: no cover - dependency missing
+    typst = None  # type: ignore[assignment]
+    _PROBE_ERRORS["typst"] = str(exc)
+
 
 # ---------------------------------------------------------------------------
 # Format tables
@@ -156,21 +181,38 @@ _PANDOC_FORMAT = {
     "txt": "plain",
 }
 
-# PDF document output needs a PDF engine that pandoc does not bundle. Detect one
-# on PATH so the UI can offer PDF only when it will actually work, and name the
-# missing engine clearly when it will not.
+# Spreadsheet formats. Read-only via openpyxl: xlsx in, csv out. Writing xlsx is
+# out of scope (a separate concern from the "get my data as CSV" use case), so
+# csv is the only target. Multi-sheet workbooks export the FIRST worksheet only.
+_SHEET_READ = {"xlsx"}
+_SHEET_WRITE = {"csv"}
+
+# PDF document output needs a PDF engine. The bundled Typst wheel is the portable
+# default (rendered in-process, no PATH); these PATH engines are additional
+# options detected when installed. Typst is listed here too so pandoc's own
+# --pdf-engine could use it IF a real executable is ever on PATH, but the
+# in-process Typst path does not depend on this list.
 _PDF_ENGINES = ("pdflatex", "xelatex", "lualatex", "tectonic", "typst",
                 "wkhtmltopdf", "weasyprint", "context", "pdfroff")
 
+# Sentinel marking the bundled, in-process Typst engine — distinct from a
+# same-named PATH executable. The manager keys on this to run the two-step
+# pandoc->markup->typst.compile() path rather than pandoc's --pdf-engine.
+PDF_ENGINE_TYPST_PY = "typst-py"
+
 
 def _find_pdf_engine() -> str | None:
-    """Return the first available pandoc PDF engine, or None.
+    """Resolve the PDF engine for document->PDF, preferring the bundled one.
 
-    Portability note: none of these ship with the app, so PDF output is an
-    opportunistic extra that lights up only if the operator happens to have a
-    PDF engine installed. The absence of one is surfaced as an actionable
-    message, never a silent failure.
+    The bundled Typst wheel renders in-process with nothing on PATH, so it is
+    the portable default and wins when present. A PATH engine (a LaTeX install,
+    wkhtmltopdf, etc.) is used only as a fallback when the wheel is absent. When
+    neither exists, PDF output is refused with an actionable message rather than
+    failing mid-conversion.
     """
+    if _HAS_TYPST:
+        return PDF_ENGINE_TYPST_PY
+
     import shutil
 
     for name in _PDF_ENGINES:
@@ -199,6 +241,8 @@ for _e in _VIDEO_RW:
     _CATEGORY_BY_EXT[_e] = "video"
 for _e in _DOC_READ | _DOC_WRITE:
     _CATEGORY_BY_EXT[_e] = "documents"
+for _e in _SHEET_READ | _SHEET_WRITE:
+    _CATEGORY_BY_EXT[_e] = "spreadsheet"
 
 # Display label and ordering for each category.
 CATEGORY_LABELS = {
@@ -207,9 +251,11 @@ CATEGORY_LABELS = {
     "audio": "Audio",
     "video": "Video",
     "documents": "Documents",
+    "spreadsheet": "Spreadsheets",
     "fetch": "From URL",
 }
-CATEGORY_ORDER = ["images", "vector", "audio", "video", "documents", "fetch"]
+CATEGORY_ORDER = ["images", "vector", "audio", "video", "documents",
+                  "spreadsheet", "fetch"]
 
 # ---------------------------------------------------------------------------
 # Conversion modes
@@ -346,12 +392,19 @@ def capabilities() -> list[Capability]:
         Capability("PyMuPDF (SVG/PDF input)", _HAS_MUPDF, _PROBE_ERRORS.get("pymupdf", ""), category="vector"),
         Capability("ffmpeg (audio/video)", _HAS_FFMPEG, _PROBE_ERRORS.get("ffmpeg", ""), category="audio/video"),
         Capability("pandoc (documents)", _HAS_PANDOC, _PROBE_ERRORS.get("pandoc", ""), category="documents"),
+        Capability("openpyxl (spreadsheets)", _HAS_OPENPYXL, _PROBE_ERRORS.get("openpyxl", ""), category="spreadsheet"),
         Capability(
             "PDF output engine",
             bool(_PDF_ENGINE),
-            f"using {_PDF_ENGINE}" if _PDF_ENGINE
-            else "no PDF engine on PATH — document-to-PDF unavailable",
-            optional=True,
+            (
+                "bundled Typst (in-process)" if _PDF_ENGINE == PDF_ENGINE_TYPST_PY
+                else f"using {_PDF_ENGINE}" if _PDF_ENGINE
+                else "no PDF engine available — document-to-PDF unavailable"
+            ),
+            # Typst ships in the wheel set, so PDF is a core capability now, not
+            # an opportunistic PATH extra. It only reads as optional when Typst
+            # is somehow absent and no PATH engine fills in.
+            optional=not _HAS_TYPST,
             category="documents",
         ),
     ]
@@ -373,6 +426,8 @@ def readable_extensions() -> list[str]:
         exts |= set(_AUDIO_RW) | set(_VIDEO_RW)
     if _HAS_PANDOC:
         exts |= _DOC_READ
+    if _HAS_OPENPYXL:
+        exts |= _SHEET_READ
     return sorted(exts)
 
 
@@ -396,6 +451,8 @@ def target_extensions() -> list[str]:
         exts |= set(_DOC_WRITE)
         if _PDF_ENGINE:
             exts.add("pdf")
+    if _HAS_OPENPYXL:
+        exts |= _SHEET_WRITE
     return sorted(exts)
 
 
@@ -455,7 +512,28 @@ def targets_for(source_ext: str) -> list[str]:
             out.append("pdf")
         return sorted(out)
 
+    if category == "spreadsheet" and _HAS_OPENPYXL:
+        # xlsx -> csv only; csv itself has no onward target here.
+        if src in _SHEET_READ:
+            return sorted(_SHEET_WRITE)
+        return []
+
     return []
+
+
+def category_targets(category: str) -> list[str]:
+    """Every target format valid for inputs in a given category.
+
+    Union of `targets_for` over the category's readable input extensions, so a
+    group's target dropdown offers only compatible formats — a documents group
+    never lists png, an audio group never lists docx. Targets are category-
+    scoped, so this is stable regardless of which specific source is present.
+    """
+    inputs = [e for e in readable_extensions() if category_for(e) == category]
+    out: set[str] = set()
+    for ext in inputs:
+        out |= set(targets_for(ext))
+    return sorted(out)
 
 
 def plan(source: Path, target_ext: str) -> ConversionPlan:
@@ -502,9 +580,9 @@ def plan(source: Path, target_ext: str) -> ConversionPlan:
         if tgt_ext == "pdf":
             if not _PDF_ENGINE:
                 raise ValueError(
-                    "PDF output needs a PDF engine (e.g. Typst, wkhtmltopdf, or a "
-                    "LaTeX install). None was found on PATH, so PDF is unavailable. "
-                    "Install one and restart, or choose a different target."
+                    "PDF output needs a PDF engine. The bundled Typst engine "
+                    "didn't load — reinstall dependencies, or install a PDF "
+                    "engine (wkhtmltopdf, a LaTeX distribution) and restart."
                 )
             return ConversionPlan(
                 source=source,
@@ -522,6 +600,18 @@ def plan(source: Path, target_ext: str) -> ConversionPlan:
             engine="pandoc",
             pandoc_from=_PANDOC_FORMAT.get(src_ext, src_ext),
             pandoc_to=_PANDOC_FORMAT.get(tgt_ext, tgt_ext),
+        )
+
+    # -- spreadsheets: openpyxl in-process ---------------------------------
+    if category == "spreadsheet":
+        if not _HAS_OPENPYXL:
+            raise ValueError("openpyxl engine is unavailable")
+        if src_ext not in _SHEET_READ or tgt_ext not in _SHEET_WRITE:
+            raise ValueError(f"Unsupported spreadsheet conversion: .{src_ext} -> .{tgt_ext}")
+        return ConversionPlan(
+            source=source,
+            target_ext=tgt_ext,
+            engine="openpyxl",
         )
 
     raise ValueError(f"No engine for category: {category}")

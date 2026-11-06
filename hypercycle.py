@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Hypercycle — local file conversion for the Hyper ecosystem.
+"""Hypercycle - local file conversion for the Hyper ecosystem.
 
 Converts files on this machine with no cloud service, no network access, and no
 model inference. Every engine is an in-process, wheel-only dependency so the app
 stays portable: nothing to install separately, nothing looked up on PATH.
 
-Phase 1 covers images — raster formats via Pillow, HEIC/HEIF via pillow-heif,
+Phase 1 covers images - raster formats via Pillow, HEIC/HEIF via pillow-heif,
 AVIF via Pillow's native support, and SVG/PDF input rasterised through PyMuPDF.
 
 Architecture:
@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 import webview
+from webview.dom import DOMEventHandler
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -34,12 +35,12 @@ HYPERCYCLE_DIR = Path(__file__).parent.resolve()
 HYPERSPACE_ROOT = HYPERCYCLE_DIR.parent
 HYPERVISOR_DIR = HYPERSPACE_ROOT / ".hypervisor"
 # Live theme state is owned by preferences.json. theme-defaults.json is retained
-# only as a source of semantic colors and as a last-resort fallback — it is
+# only as a source of semantic colors and as a last-resort fallback - it is
 # deprecated for accent/warm/cool/comp and goes stale on the first palette change.
 PREFERENCES = HYPERVISOR_DIR / "preferences.json"
 THEME_DEFAULTS = HYPERVISOR_DIR / "theme-defaults.json"
 # The app owns its own brand assets so relocating this directory does not break
-# its identity — only the shared palette is read from Hypervisor.
+# its identity - only the shared palette is read from Hypervisor.
 ICONS_DIR = HYPERCYCLE_DIR / "assets" / "icons"
 BRAND_SVG = ICONS_DIR / "hypercycle.svg"
 ICON_FILE = ICONS_DIR / "hypercycle.ico"
@@ -54,13 +55,12 @@ from palette import build_palette_oklch  # noqa: E402
 logger = setup_logger("hypercycle")
 
 # Auto-build on launch so edits to assets/ are always reflected.
-subprocess.run(
-    [sys.executable, str(HYPERCYCLE_DIR / "build.py")],
-    cwd=str(HYPERCYCLE_DIR),
-)
+from launch_build import build_or_warn, with_notice  # noqa: E402
+_build_notice = build_or_warn(HYPERCYCLE_DIR, "Hypercycle")
 
 sys.path.insert(0, str(HYPERCYCLE_DIR))
 from generated_html import HTML  # noqa: E402
+HTML = with_notice(HTML, _build_notice)
 
 import engines  # noqa: E402
 from convert_manager import ConvertManager  # noqa: E402
@@ -78,7 +78,7 @@ def _apply_window_chrome(title: str, icon_path: str):
     hwnd = ctypes.windll.user32.FindWindowW(None, title)
     if not hwnd:
         logger.warning(
-            "window chrome skipped: no window titled %r yet — dark title bar "
+            "window chrome skipped: no window titled %r yet - dark title bar "
             "and icon not applied",
             title,
         )
@@ -125,7 +125,7 @@ def _apply_window_chrome(title: str, icon_path: str):
 def _read_theme() -> dict:
     """Resolve the live palette the same way Hypervisor does.
 
-    Theme state lives in preferences.json — theme-defaults.json is deprecated for
+    Theme state lives in preferences.json - theme-defaults.json is deprecated for
     this purpose and goes stale as soon as the operator changes the accent, which
     is why it must not be the primary source.
 
@@ -179,7 +179,7 @@ def _read_theme() -> dict:
     except Exception as exc:
         logger.warning("preferences read failed: %s", exc)
 
-    # Semantics only — never let the deprecated file supply accent/warm/cool/comp
+    # Semantics only - never let the deprecated file supply accent/warm/cool/comp
     # unless preferences produced nothing at all.
     try:
         if THEME_DEFAULTS.exists():
@@ -194,7 +194,7 @@ def _read_theme() -> dict:
         logger.warning("theme defaults read failed: %s", exc)
 
     # Drop empty strings and None, but keep the light-mode boolean even when
-    # False — turning light mode off has to propagate as much as turning it on.
+    # False - turning light mode off has to propagate as much as turning it on.
     return {k: v for k, v in theme.items() if v or isinstance(v, bool)}
 
 
@@ -278,44 +278,59 @@ class Api:
 
         cats = {}
         for cat in order:
-            # Vector and PDF inputs rasterise, so their targets are the raster
-            # set rather than anything vector-native.
+            # Only formats a source in this category can actually become - a
+            # documents group offers pdf/docx/odt/..., never png or mp3.
+            cat_targets = engines.category_targets(cat)
             cats[cat] = {
                 "label": engines.CATEGORY_LABELS.get(cat, cat),
-                "targets": targets,
+                "targets": cat_targets,
             }
 
-        defaults = {cat: self._default_target(cat, targets) for cat in order}
+        defaults = {
+            cat: self._default_target(cat, cats[cat]["targets"]) for cat in order
+        }
         return cats, order, defaults
 
     @staticmethod
     def _default_target(category: str, targets: list) -> str:
-        preferred = {"images": "png", "vector": "png"}.get(category, "png")
-        return preferred if preferred in targets else (targets[0] if targets else "")
+        preferred = {
+            "images": "png",
+            "vector": "png",
+            "audio": "mp3",
+            "video": "mp4",
+            "documents": "pdf",
+            "spreadsheet": "csv",
+        }.get(category)
+        if preferred and preferred in targets:
+            return preferred
+        return targets[0] if targets else ""
 
     def get_theme(self):
         """Re-read the palette so a change made in Hypervisor can be picked up
         without restarting."""
         return _read_theme()
 
-    def push_theme(self):
+    def push_theme(self, force=False):
         """Read the palette and push it to the frontend directly.
 
         pywebview exposes no window-focus event, so the JS focus listener is not
         guaranteed to fire inside the WebView2 host. This gives Python a reliable
-        path to drive a refresh — from the `restored` window event and a light
-        periodic poll — so a palette or light-mode change made in Hypervisor
-        lands without a restart.
+        path to drive a refresh - from the `restored` window event and a light
+        periodic poll - so a palette or light-mode change made in Hypervisor
+        lands without a restart. force=True repaints even an unchanged palette.
         """
         if not self._window:
-            return
+            return False
         try:
             payload = json.dumps(_read_theme())
+            flag = "true" if force else "false"
             self._window.evaluate_js(
-                f"window.hcApplyTheme && window.hcApplyTheme({payload})"
+                f"window.hcApplyTheme && window.hcApplyTheme({payload}, {flag})"
             )
+            return True
         except Exception:
             logger.exception("failed to push theme")
+            return False
 
     def set_group_target(self, category, target_ext):
         """Change the target format for one category and retarget its queued jobs."""
@@ -372,10 +387,12 @@ class Api:
             p = Path(raw)
             if not p.is_file():
                 rejected.append({"path": raw, "reason": "not a file"})
+                logger.info("intake rejected (not a file): %r", raw)
                 continue
             ext = p.suffix.lower().lstrip(".")
             if ext not in accepted:
                 rejected.append({"path": raw, "reason": "unsupported input"})
+                logger.info("intake rejected (unsupported .%s): %r", ext, raw)
                 continue
             category = engines.category_for(ext)
             target = self._group_targets.get(category) or self._default_target(
@@ -385,6 +402,39 @@ class Api:
         if rejected:
             logger.info("rejected %d input(s)", len(rejected))
         return {"added": added, "rejected": rejected}
+
+    def on_drop(self, e):
+        """Python-side drop handler.
+
+        The dropped file's real OS path is only exposed to Python, as
+        `pywebviewFullPath` on each entry of the drop event's file list - browser
+        security keeps it out of JS, and the non-standard `File.path` is empty
+        under WebView2. So drop intake is owned here rather than in the JS drop
+        handler: read the paths, enqueue through the shared add_jobs logic, then
+        push the outcome back to the frontend so the queue and drawer update.
+        """
+        try:
+            files = (e or {}).get("dataTransfer", {}).get("files", []) or []
+            paths = [f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")]
+            if not paths:
+                logger.info("drop produced no resolvable paths (%d file entries)", len(files))
+                self._notify_drop({"added": [], "rejected": [], "no_path": len(files)})
+                return
+            result = self.add_jobs(paths)
+            self._notify_drop(result)
+        except Exception:
+            logger.exception("drop handling failed")
+
+    def _notify_drop(self, result: dict) -> None:
+        """Tell the frontend a drop was processed so it can refresh and report."""
+        if not self._window:
+            return
+        try:
+            self._window.evaluate_js(
+                f"window.hcDropResult && window.hcDropResult({json.dumps(result)})"
+            )
+        except Exception:
+            logger.exception("failed to push drop result")
 
     def list_jobs(self):
         return self._manager.jobs()
@@ -422,18 +472,51 @@ def on_loaded(window, api):
     """Apply native window chrome once the webview has finished loading.
 
     The DWM calls below resolve the window by its title, which is not registered
-    the instant the webview starts — so this runs off the loaded event with a
+    the instant the webview starts - so this runs off the loaded event with a
     short delay on a background thread. Applying it too early silently no-ops:
     FindWindowW returns 0 and both the dark title bar and the icon are skipped.
     """
 
     def _init():
         api.bind(window)
+        _bind_drop(window, api)
         time.sleep(0.5)
         _apply_window_chrome("Hypercycle", str(ICON_FILE))
         _poll_theme(window, api)
 
     threading.Thread(target=_init, daemon=True).start()
+
+
+def _bind_drop(window, api):
+    """Wire the document's drag-and-drop events to the Python drop handler.
+
+    dragenter/dragover must prevent default (and stop propagation) or the
+    WebView refuses the drop and the browser tries to open the file instead.
+    The real OS paths arrive as `pywebviewFullPath` on the drop event, which is
+    only visible to a Python DOM handler - hence handling drop here.
+    """
+    try:
+        def _noop(e):
+            return None
+
+        window.dom.document.events.dragenter += DOMEventHandler(_noop, True, True)
+        window.dom.document.events.dragover += DOMEventHandler(_noop, True, True)
+        window.dom.document.events.drop += DOMEventHandler(api.on_drop, True, True)
+        logger.info("drop handler bound")
+    except Exception:
+        logger.exception("failed to bind drop handler")
+
+
+def _theme_signature() -> tuple:
+    """(mtime_ns, size) of each theme source file, or None when missing."""
+    sig = []
+    for path in (PREFERENCES, THEME_DEFAULTS):
+        try:
+            st = path.stat()
+            sig.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append(None)
+    return tuple(sig)
 
 
 def _poll_theme(window, api):
@@ -442,13 +525,23 @@ def _poll_theme(window, api):
     Palette and light-mode changes are made in a different app (Hypervisor).
     pywebview offers no focus event, so rather than depend on the JS focus
     listener firing inside WebView2, Python re-pushes the current theme every few
-    seconds. The read is a small JSON file, so the cost is negligible, and only a
-    genuine change repaints anything on the JS side.
+    seconds. The read is a small JSON file, so the cost is negligible. A change, or
+    the forced push every 30s, repaints on the JS side.
     """
+    last_sig = None
+    last_push = 0.0
     while True:
         time.sleep(3)
         try:
-            api.push_theme()
+            sig = _theme_signature()
+            now = time.monotonic()
+            # Force a push every 30s so styles WebView2 dropped are restored.
+            changed = last_sig is None or sig != last_sig
+            if not changed and now - last_push < 30:
+                continue
+            if api.push_theme(force=not changed) is not False:
+                last_sig = sig
+                last_push = now
         except Exception:
             logger.exception("theme poll failed")
             return
@@ -470,7 +563,7 @@ def main():
     window.events.loaded += lambda: on_loaded(window, api)
     # Restoring from minimized can drop injected inline styles in some WebView2
     # states; re-push the theme so the palette survives.
-    window.events.restored += lambda: api.push_theme()
+    window.events.restored += lambda: api.push_theme(force=True)
 
     caps = engines.capabilities()
     for cap in caps:

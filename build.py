@@ -11,6 +11,7 @@ Usage: python build.py
 Output: Updates the HTML variable in generated_html.py
 """
 import glob
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -18,18 +19,14 @@ HYPERKIT_DIR = ROOT.parent / ".hyperkit"
 HYPERKIT_CSS_DIR = HYPERKIT_DIR / "css"
 HYPERKIT_JS_DIR = HYPERKIT_DIR / "js"
 
-# Hypercycle needs tooltips and toasts from Hyperkit; no greeting or cursor-trail.
-HYPERKIT_JS_MODULES = ["utils.js", "toast.js"]
+# Self-hosted @font-face rules (data URIs) shared by every app.
+sys.path.insert(0, str(HYPERKIT_DIR / "python"))
+from hyperkit_css import hyperkit_css  # noqa: E402
+from design_lint import report as report_design_lint  # noqa: E402
 
-# Cascade order matters — tokens must land before anything that consumes them.
-HYPERKIT_CSS_ORDER = (
-    "tokens.css",
-    "keyframes.css",
-    "primitives.css",
-    "globals.css",
-    "components.css",
-    "accessibility.css",
-)
+# Hypercycle needs tooltips and toasts from Hyperkit; no greeting or cursor-trail.
+HYPERKIT_JS_MODULES = ["utils.js", "toast.js", "tooltip.js"]
+
 
 
 def concat_files(pattern):
@@ -38,18 +35,8 @@ def concat_files(pattern):
 
 
 def concat_hyperkit_css():
-    """Read Hyperkit's shared CSS modules in cascade order. Fails loudly if missing."""
-    parts = []
-    for name in HYPERKIT_CSS_ORDER:
-        f = HYPERKIT_CSS_DIR / name
-        if not f.exists():
-            raise FileNotFoundError(
-                f"Hyperkit CSS file missing: {f}\n"
-                "Hypercycle's build.py requires the shared CSS modules in "
-                "../.hyperkit/css/. Restore the .hyperkit/ directory."
-            )
-        parts.append(f.read_text(encoding="utf-8"))
-    return "\n".join(parts)
+    """Read the shared HyperKit CSS modules in cascade order. Fails loudly if missing."""
+    return hyperkit_css(("components",), app="Hypercycle")
 
 
 def render_hyperkit_js_blocks():
@@ -109,4 +96,5 @@ def build():
 
 
 if __name__ == "__main__":
+    report_design_lint("Hypercycle", ROOT)  # exits 1 before anything is written
     build()
